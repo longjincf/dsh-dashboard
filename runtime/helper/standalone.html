@@ -394,13 +394,11 @@ function pollAll() {
   var scrollTop = listEl.scrollTop; // 渲染后恢复列表内部滚动位置
 
   Promise.allSettled([
-    apiGet('/api/sessions'),
-    apiGet('/api/tools' + (selectedId ? '?sessionId=' + encodeURIComponent(selectedId) : ''))
+    apiGet('/api/sessions')
   ]).then(function (results) {
     var sr = results[0]; // sessions
-    var tr = results[1]; // tools 目录（变化少但一并刷新）
-    // 任一失败 → 状态点变红 + 顶部提示条；全部成功 → 恢复绿
-    setOnline(sr.status === 'fulfilled' && tr.status === 'fulfilled');
+    // 失败 → 状态点变红 + 顶部提示条；成功 → 恢复绿
+    setOnline(sr.status === 'fulfilled');
 
     if (sr.status === 'fulfilled') {
       var data = sr.value || {};
@@ -413,12 +411,8 @@ function pollAll() {
       renderDetail();
       renderDefaults();
     }
-    if (tr.status === 'fulfilled') {
-      var t = tr.value || {};
-      toolsCatalog = Array.isArray(t.tools) ? t.tools.slice() : toolsCatalog;
-      renderDetail(); // 目录变化后刷新选中会话的 chips
-      renderDefaults(); // 目录变化后刷新默认白名单 chips
-    }
+    // 工具目录：统一走 refreshTools（代际守卫，防止旧轮询响应覆盖新目录）
+    refreshTools();
     refreshUsage(); // 每轮轮询刷新选中会话用量（失败静默保留旧文本）
 
     $('last-update').textContent = '最近更新 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
@@ -747,19 +741,33 @@ function commitSessionBudget(v) {
 }
 
 // 拉取选中会话用量：live 才请求；防重入；失败静默保留旧文本
-/* 选中会话的工具目录刷新（选中变化时立即拉取；轮询里也带 sessionId 参数） */
+/* 选中会话的工具目录刷新（选中变化时立即拉取；轮询里也带 sessionId 参数）
+   防竞态三重保障：① 拉取中再触发 → 记 pending，完成后重拉；② 代际守卫丢弃过期响应；
+   ③ 响应落地前校验 selectedId 未变 */
+var toolsEpoch = 0;
+var toolsPending = false;
+
 function refreshTools() {
-  if (toolsFetching) return;
+  if (toolsFetching) {
+    toolsPending = true; // 完成后按最新选中重拉
+    return;
+  }
   toolsFetching = true;
+  toolsPending = false;
+  var epoch = ++toolsEpoch;
+  var sidAtIssue = selectedId;
   var url = '/api/tools' + (selectedId ? '?sessionId=' + encodeURIComponent(selectedId) : '');
   apiGet(url).then(function (data) {
+    if (epoch !== toolsEpoch || sidAtIssue !== selectedId) return; // 过期/选中已变：丢弃
     if (data && Array.isArray(data.tools) && data.tools.length) toolsCatalog = data.tools.slice();
     renderDetail();
     renderDefaultTools();
   }).catch(function () {
+    if (epoch === toolsEpoch && sidAtIssue === selectedId) renderDetail();
     /* 目录拉取失败：保留旧目录 */
   }).then(function () {
     toolsFetching = false;
+    if (toolsPending) refreshTools();
   });
 }
 
