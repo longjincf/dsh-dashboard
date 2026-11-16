@@ -64,8 +64,8 @@
   }
   .hidden { display: none !important; }
 
-  /* ===== 中间滚动区 ===== */
-  #middle { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+  /* ===== 中间区：常驻面板 + 内部滚动列表 ===== */
+  #middle { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
 
   /* 折叠条 */
   .collapse-head {
@@ -109,8 +109,21 @@
   }
   .chip.on { background: rgba(110, 139, 255, 0.30); border-color: #6e8bff; color: #fff; }
 
-  /* ===== 会话列表 ===== */
-  #session-list { flex: 1; }
+  /* ===== 常驻预算框（选中会话；无选中时占位禁用） ===== */
+  #budget-resident {
+    flex-shrink: 0;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.15);
+  }
+  #budget-resident .d-head {
+    font-size: 13px; font-weight: 600; margin-bottom: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  input[type="range"]:disabled { opacity: 0.4; }
+
+  /* ===== 会话列表（内部滚动） ===== */
+  #session-list { flex: 1; min-height: 0; overflow-y: auto; }
   .session-row {
     display: block; width: 100%; text-align: left;
     background: transparent; border: none;
@@ -223,15 +236,12 @@
         </div>
       </section>
 
-      <!-- 会话列表 -->
-      <section id="session-list"></section>
-
-      <!-- 选中会话详情 -->
-      <section id="detail" class="hidden">
-        <div class="d-head" id="d-head-title"></div>
+      <!-- 常驻预算框：选中会话的预算（无选中时占位禁用） -->
+      <section id="budget-resident">
+        <div class="d-head" id="b-head-title">未选中会话</div>
         <div class="row-label">预算（改即存）</div>
         <div class="slider-row">
-          <input type="range" id="s-limit" min="1024" max="32768" step="1024" aria-label="会话预算" />
+          <input type="range" id="s-limit" min="1024" max="32768" step="1024" aria-label="会话预算" disabled />
           <span id="s-limit-text" class="value is-default">默认</span>
         </div>
         <div class="chips" id="s-presets">
@@ -239,6 +249,13 @@
           <button type="button" class="chip" data-k="20480">20K</button>
           <button type="button" class="chip" data-k="32768">32K</button>
         </div>
+      </section>
+
+      <!-- 会话列表（内部滚动） -->
+      <section id="session-list"></section>
+
+      <!-- 选中会话：工具白名单 + 清空（底部常驻区） -->
+      <section id="detail" class="hidden">
         <section>
           <button id="btn-tools" class="collapse-head" aria-expanded="false">
             <span class="chev">▸</span> 工具白名单
@@ -354,8 +371,8 @@ function setOnline(ok) {
 function pollAll() {
   if (polling) return; // 上一次未结束则跳过本轮
   polling = true;
-  var middle = $('middle');
-  var scrollTop = middle.scrollTop; // 渲染后恢复滚动位置
+  var listEl = $('session-list');
+  var scrollTop = listEl.scrollTop; // 渲染后恢复列表内部滚动位置
 
   Promise.allSettled([apiGet('/api/sessions'), apiGet('/api/defaults')]).then(function (results) {
     var sr = results[0];
@@ -383,7 +400,7 @@ function pollAll() {
     }
 
     $('last-update').textContent = '最近更新 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
-    middle.scrollTop = scrollTop;
+    listEl.scrollTop = scrollTop;
     polling = false;
   });
 }
@@ -492,20 +509,30 @@ function renderSessions() {
   });
 }
 
-/* ================= 选中会话详情 ================= */
+/* ================= 选中会话：常驻预算框 + 底部工具/清空 ================= */
 
 function renderDetail() {
-  var sec = $('detail');
   var s = sessions.find(function (x) { return x.conv === selectedConv; });
-  if (!s) { sec.classList.add('hidden'); return; }
-  sec.classList.remove('hidden');
-
-  $('d-head-title').textContent = s.title || s.first_user || s.conv || '(无标题)';
+  var limit = $('s-limit');
+  if (!s) {
+    // 无选中：预算框常驻占位并禁用
+    $('b-head-title').textContent = '未选中会话';
+    limit.disabled = true;
+    limit.value = 8192;
+    $('s-limit-text').textContent = '默认';
+    $('s-limit-text').classList.add('is-default');
+    $('detail').classList.add('hidden');
+    return;
+  }
+  limit.disabled = false;
+  $('b-head-title').textContent = s.title || s.first_user || s.conv || '(无标题)';
   var lim = s.limit;
-  if (document.activeElement !== $('s-limit')) {
-    $('s-limit').value = lim == null ? 8192 : lim;
+  if (document.activeElement !== limit) {
+    limit.value = lim == null ? 8192 : lim;
   }
   $('s-limit-text').textContent = lim == null ? '默认' : String(lim);
+  $('s-limit-text').classList.toggle('is-default', lim == null);
+  $('detail').classList.remove('hidden');
   renderToolsChips($('s-tools'), s.allow, function (allow) {
     saveSessionTools(s.conv, allow);
   });
