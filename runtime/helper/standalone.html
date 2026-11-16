@@ -250,11 +250,13 @@
             <label class="row-label" for="def-budget-range">默认预算（null=不限制）</label>
             <span class="budget-val" id="def-budget-val">不限制</span>
           </div>
-          <input type="range" id="def-budget-range" class="range" min="1024" max="32768" step="1024" value="8192" />
+          <input type="range" id="def-budget-range" class="range" min="1024" max="1048576" step="1024" value="8192" />
           <div class="chips">
             <button type="button" class="chip preset" data-v="8192" aria-label="默认预算 8K">8K</button>
-            <button type="button" class="chip preset" data-v="20480" aria-label="默认预算 20K">20K</button>
             <button type="button" class="chip preset" data-v="32768" aria-label="默认预算 32K">32K</button>
+            <button type="button" class="chip preset" data-v="131072" aria-label="默认预算 128K">128K</button>
+            <button type="button" class="chip preset" data-v="524288" aria-label="默认预算 512K">512K</button>
+            <button type="button" class="chip preset" data-v="1048576" aria-label="默认预算 1M">1M</button>
             <button type="button" class="chip" id="btn-def-unlimit" aria-label="默认预算不限制">不限制</button>
           </div>
           <!-- ② 默认工具白名单（null=不限制；全不选 → null 恢复全部） -->
@@ -274,11 +276,13 @@
             <label class="row-label" for="s-budget-range">token 预算</label>
             <span class="budget-val" id="s-budget-usage">未挂载（需打开会话）</span>
           </div>
-          <input type="range" id="s-budget-range" class="range" min="1024" max="32768" step="1024" value="8192" />
+          <input type="range" id="s-budget-range" class="range" min="1024" max="1048576" step="1024" value="8192" />
           <div class="chips">
             <button type="button" class="chip preset" data-v="8192" aria-label="会话预算 8K">8K</button>
-            <button type="button" class="chip preset" data-v="20480" aria-label="会话预算 20K">20K</button>
             <button type="button" class="chip preset" data-v="32768" aria-label="会话预算 32K">32K</button>
+            <button type="button" class="chip preset" data-v="131072" aria-label="会话预算 128K">128K</button>
+            <button type="button" class="chip preset" data-v="524288" aria-label="会话预算 512K">512K</button>
+            <button type="button" class="chip preset" data-v="1048576" aria-label="会话预算 1M">1M</button>
             <button type="button" class="chip" id="btn-s-unlimit" aria-label="会话预算不限制">不限制</button>
           </div>
         </section>
@@ -473,6 +477,7 @@ function fmtNum(n) {
 // 预算展示文本：null → 不限制；1024 的整数倍 → NK；其余按原值
 function budgetText(v) {
   if (v === null || v === undefined) return '不限制';
+  if (v >= 1048576 && v % 1048576 === 0) return (v / 1048576) + 'M';
   if (v % 1024 === 0) return (v / 1024) + 'K';
   return fmtNum(v);
 }
