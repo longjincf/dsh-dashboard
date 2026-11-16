@@ -41,6 +41,11 @@ window.__ModuleLoader__.load({
 .dshdash-dotdot.on{background:#3ecf8e;box-shadow:0 0 8px #3ecf8e}
 .dshdash-dotdot.off{background:#e0606c;box-shadow:0 0 8px #e0606c}
 .dshdash-frame{position:fixed;-webkit-app-region:no-drag;z-index:2147482999;width:392px;height:680px;border:none;background:transparent}
+.dshdash-frame{width:100%;height:100%}
+.dshdash-frame{position:static}
+.dshdash-framewrap{position:fixed;-webkit-app-region:no-drag;z-index:2147482999;width:392px;height:680px}
+.dshdash-dragstrip{position:absolute;top:10px;left:10px;right:152px;height:38px;cursor:grab;z-index:2;background:transparent}
+.dshdash-dragstrip:active{cursor:grabbing}
 .dshdash-popup{position:fixed;z-index:2147483001;min-width:190px;border-radius:10px;background:rgba(22,26,35,.97);
   border:1px solid rgba(255,255,255,.12);box-shadow:0 12px 34px rgba(0,0,0,.5);padding:5px;font-size:12.5px;color:#d8dde8}
 .dshdash-popup .mi{padding:7px 10px;border-radius:7px;cursor:pointer}
@@ -209,9 +214,30 @@ window.__ModuleLoader__.load({
         }, h('span', { className: 'dshdash-dotdot ' + (online ? 'on' : 'off') }), '会话控制台')
       }
 
-      // panel：iframe 承载唯一 UI
+      // panel：父壳拖拽条 + iframe（拖拽逻辑在父壳，不依赖 iframe 事件转发）
       const st = pos ? { left: pos.x + 'px', top: pos.y + 'px', right: 'auto', bottom: 'auto' } : { right: '18px', bottom: '18px' }
-      return h('iframe', { className: 'dshdash-frame', ref: frameRef, style: st, src: '/dsh-dashboard/standalone' })
+      const panelDrag = (e) => {
+        if (e.target !== e.currentTarget) return
+        e.preventDefault(); e.stopPropagation()
+        const el = frameRef.current
+        const r = el ? el.getBoundingClientRect() : { left: 0, top: 0 }
+        const base = pos || { x: r.left, y: r.top }
+        const sx = e.clientX - base.x, sy = e.clientY - base.y
+        const move = (ev) => {
+          ev.preventDefault(); ev.stopPropagation()
+          setPos(clamp(ev.clientX - sx, ev.clientY - sy))
+        }
+        const up = () => {
+          window.removeEventListener('mousemove', move)
+          window.removeEventListener('mouseup', up)
+          try { setLS(LS_POS, JSON.stringify(pos)) } catch {}
+        }
+        window.addEventListener('mousemove', move)
+        window.addEventListener('mouseup', up)
+      }
+      return h('div', { className: 'dshdash-framewrap', ref: frameRef, style: st },
+        h('div', { className: 'dshdash-dragstrip', onMouseDown: panelDrag }),
+        h('iframe', { className: 'dshdash-frame', src: '/dsh-dashboard/standalone' }))
     }
 
     function SettingsSection() {
