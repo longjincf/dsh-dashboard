@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>会话控制台 · 独立窗口</title>
+<style>
+:root{--line:rgba(255,255,255,.09)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:13px/1.5 -apple-system,"PingFang SC",sans-serif;color:#e8ecf4;background:transparent;min-height:100vh;padding:10px}
+.wrap{width:100%;max-width:420px;margin:0 auto;padding:0;display:flex;flex-direction:column;gap:8px;
+  background:rgba(18,21,28,.9);backdrop-filter:blur(20px) saturate(1.2);border-radius:14px;border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 18px 50px rgba(0,0,0,.45);overflow:hidden}
+.head{-webkit-app-region:drag;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.09);display:flex;align-items:center;gap:8px;cursor:grab}
+.head button{-webkit-app-region:no-drag}
+.head{display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.dot.on{background:#3ecf8e;box-shadow:0 0 8px #3ecf8e}
+.dot.off{background:#e0606c}
+.title{font-weight:600}
+.sp{flex:1}
+.sub{font-size:11px;color:#8b93a5}
+.card{border:1px solid var(--line);border-radius:10px;background:rgba(28,32,42,.72)}
+.sess{display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--line);cursor:pointer}
+.sess:last-child{border-bottom:none}
+.sess.on{background:rgba(79,140,255,.10)}
+.av{width:28px;height:28px;border-radius:8px;background:rgba(79,140,255,.15);color:#4f8cff;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
+.meta{flex:1;min-width:0}
+.name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta2{font-size:11px;color:#8b93a5;display:flex;gap:8px}
+.sec{font-size:11px;color:#8b93a5;letter-spacing:1.5px;margin:10px 0 6px;display:flex;align-items:center;gap:6px}
+.sec::after{content:"";flex:1;height:1px;background:var(--line)}
+.slider-row{display:flex;gap:10px;align-items:center}
+.slider-row input{flex:1;accent-color:#4f8cff}
+.kv{font-weight:700;color:#9db9f5;width:52px;text-align:right}
+.presets{display:flex;gap:6px;margin-top:8px}
+.presets button{flex:1;padding:5px 0;border-radius:8px;border:1px solid var(--line);background:transparent;color:#8b93a5;cursor:pointer}
+.presets button.on{background:rgba(79,140,255,.15);color:#9db9f5;border-color:#4f8cff}
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tool{display:flex;align-items:center;justify-content:space-between;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.02);cursor:pointer}
+.tool.off .t{color:#8b93a5}
+.sw{width:28px;height:16px;border-radius:99px;background:rgba(255,255,255,.14);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:.2s}
+.tool.on .sw{background:#4f8cff}
+.tool.on .sw::after{left:14px}
+.clear{width:100%;margin-top:10px;padding:9px;border-radius:9px;border:1px solid rgba(224,96,108,.35);background:rgba(224,96,108,.08);color:#f0a0a8;cursor:pointer}
+.clear.arm{background:#e0606c;color:#fff;border-color:#e0606c}
+.empty{color:#8b93a5;text-align:center;padding:16px}
+select{width:100%;margin-top:8px;padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.04);color:#e8ecf4;font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head" id="head"><span class="dot" id="dot"></span><span class="title">会话控制台</span><span class="sp"></span><span class="sub" id="sub"></span>
+    <button id="bGear" title="设置" style="background:transparent;border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:7px;cursor:pointer">⚙</button>
+    <button id="bClose" style="background:transparent;border:1px solid rgba(255,255,255,.15);color:#8b93a5;border-radius:7px;cursor:pointer">✕</button>
+    <div id="popup" style="display:none;position:absolute;top:38px;right:8px;min-width:170px;border-radius:10px;background:rgba(22,26,35,.97);border:1px solid rgba(255,255,255,.12);padding:5px;z-index:50;box-shadow:0 12px 34px rgba(0,0,0,.5)"></div></div>
+  <div class="card" id="defs"></div>
+  <div class="card" id="list"></div>
+  <div id="detail"></div>
+</div>
+<script>
+function popupShow(html){
+  var el=document.getElementById('popup');
+  el.innerHTML=html; el.style.display='block';
+  setTimeout(function(){ document.addEventListener('click', function h(ev){ if(!el.contains(ev.target)){ el.style.display='none'; document.removeEventListener('click', h) } }, { once:false }) }, 0);
+}
+document.getElementById('bClose').onclick=function(){ window.dshdash && window.dshdash.close() };
+document.getElementById('bGear').onclick=function(){
+  popupShow('<div style="padding:7px 10px;color:#8b93a5;font-size:11.5px">关闭窗口：点 ✕（重新打开请点 DSH 内的 ⚙）</div>'
+    + '<div style="padding:7px 10px;color:#8b93a5;font-size:11.5px">完全关闭：DSH 设置 → 控制台设置 → 关闭控制台</div>');
+};
+window.toolsOpen = false;
+var ALL=['read','bash','grep','glob','write','edit','run_mac_command','mac_memory_top10','web_search','ask_user_question'];
+var PRESETS=[8192,20480,32768];
+var THINK_OPTS=[['ds','思考：跟随 DSH',null],['off','思考：off',{enabled:false}],['minimal','思考：minimal',{enabled:true,effort:'min'}],['low','思考：low',{enabled:true,effort:'low'}],['medium','思考：medium',{enabled:true,effort:'med'}],['high','思考：high',{enabled:true,effort:'high'}],['max','思考：max',{enabled:true,effort:'max'}]];
+var sessions=[],cur=null,armed=false,defs=null,defsOpen=false;
+function post(p,b){return fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(r){return r.json()})}
+function saveDefaults(partial){
+  return post('/dsh-dashboard/defaults',partial).then(function(d){ if(d&&d.defaults){defs=d.defaults;renderDefs()} })
+}
+function renderDefs(){
+  var el=document.getElementById('defs'); if(!el) return;
+  var d=defs||{limit:20000,allow:null,thinking:null};
+  var dAllow=d.allow===null?ALL.slice():d.allow;
+  var k=THINK_OPTS.find(function(o){return JSON.stringify(o[2])===JSON.stringify(d.thinking)});
+  var label=k?k[1].slice(3):'跟随 DSH';
+  var h='<div class="sec" style="cursor:pointer" id="dh"><b>'+(defsOpen?'\u25BE ':'\u25B8 ')+'</b>默认模式（新会话/子agent）\u00B7 '+Math.round(d.limit/1024)+'K \u00B7 '+dAllow.length+' 工具 \u00B7 '+label+'</div>';
+  if(defsOpen){
+    h+='<div class="slider-row" style="padding:0 12px"><input type="range" id="dkv" min="1024" max="32768" step="1024" value="'+d.limit+'"><span class="kv" id="dkvv">'+Math.round(d.limit/1024)+'K</span></div>';
+    h+='<div style="padding:0 12px"><select id="dthink">'+THINK_OPTS.map(function(o){return '<option value="'+o[0]+'"'+(k&&k[0]===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></div>';
+    h+='<div class="tools" style="margin:8px 12px 12px">'+ALL.map(function(t){var on=dAllow.indexOf(t)>=0;return '<div class="tool '+(on?'on':'off')+'" data-t="'+t+'"><span class="t">'+t+'</span><span class="sw"></span></div>'}).join('')+'</div>';
+  }
+  el.innerHTML=h;
+  if(defsOpen){
+    document.getElementById('dh').onclick=function(){defsOpen=false;renderDefs()};
+    var sl=document.getElementById('dkv');
+    sl.oninput=function(){defs.limit=+sl.value;document.getElementById('dkvv').textContent=Math.round(defs.limit/1024)+'K';saveDefaults({limit:defs.limit})};
+    document.getElementById('dthink').onchange=function(e){var o=THINK_OPTS.find(function(x){return x[0]===e.target.value});saveDefaults({thinking:o?o[2]:null})};
+    Array.prototype.forEach.call(el.querySelectorAll('.tool'),function(td){
+      td.onclick=function(){var t=td.getAttribute('data-t');var i=dAllow.indexOf(t);if(i>=0)dAllow.splice(i,1);else dAllow.push(t);saveDefaults({allow:dAllow})}
+    });
+  } else {
+    document.getElementById('dh').onclick=function(){defsOpen=true;renderDefs()};
+  }
+}
+function reload(){
+  fetch('/dsh-dashboard/defaults').then(function(r){return r.json()}).then(function(d){ defs=d.defaults||null; renderDefs() }).catch(function(){});
+  fetch('/dsh-dashboard/sessions').then(function(r){return r.json()}).then(function(d){
+    document.getElementById('dot').className='dot on';
+    document.getElementById('sub').textContent=(d.sessions||[]).length+' 会话';
+    sessions=(d.sessions||[]).map(function(s){s.allowSet=s.allow===null?ALL.slice():s.allow;return s});
+    var same=sessions.some(function(s){return cur&&s.conv===cur.conv});
+    if(!same)cur=sessions[0]||null;
+    render();
+  }).catch(function(){document.getElementById('dot').className='dot off';document.getElementById('sub').textContent='控制面离线'});
+}
+function esc(t){return String(t).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+function render(){
+  var l=document.getElementById('list');
+  if(!sessions.length){l.innerHTML='<div class="empty">暂无会话（发一条消息后出现）</div>';document.getElementById('detail').innerHTML='';return}
+  l.innerHTML=sessions.map(function(s){
+    return '<div class="sess'+(cur&&cur.conv===s.conv?' on':'')+'" data-conv="'+esc(s.conv)+'">'+
+      '<div class="av">'+esc((s.conv||'#')[0])+'</div>'+
+      '<div class="meta"><div class="name">'+esc(s.conv)+'</div>'+
+      '<div class="meta2"><span>'+((s.limit||20000)/1024)+'K</span><span>'+s.allowSet.length+' 工具</span><span>'+esc((s.last_active||'').slice(11)||'—')+'</span></div></div></div>';
+  }).join('');
+  Array.prototype.forEach.call(l.querySelectorAll('.sess'),function(el){
+    el.onclick=function(){cur=sessions.find(function(s){return s.conv===el.getAttribute('data-conv')});armed=false;render()};
+  });
+  var kv=cur.limit||20000;
+  var d=document.getElementById('detail');
+  d.innerHTML='<div class="sec">上下文预算（动态）</div>'+
+    '<div class="slider-row"><input type="range" id="kv" min="1024" max="32768" step="1024" value="'+kv+'"><span class="kv" id="kvv">'+kv/1024+'K</span></div>'+
+    '<div class="presets"><button data-k="8192">8K</button><button data-k="20480">20K</button><button data-k="32768">32K</button></div>'+
+    '<div class="sec" style="cursor:pointer" id="tsec"><b>'+((window.toolsOpen)?'\u25BE ':'\u25B8 ')+'</b>工具白名单（'+cur.allowSet.length+'/'+ALL.length+' 已启用）</div>'+((window.toolsOpen)?'<div class="tools">'+ALL.map(function(t){
+      var on=cur.allowSet.indexOf(t)>=0;
+      return '<div class="tool '+(on?'on':'off')+'" data-t="'+t+'"><span class="t">'+t+'</span><span class="sw"></span></div>';
+    }).join('')+'</div>':'')+
+    '<button class="clear" id="clr">清空该会话上下文</button>';
+  document.getElementById('kv').oninput=function(){cur.limit=+this.value;document.getElementById('kvv').textContent=(cur.limit/1024)+'K';
+    Array.prototype.forEach.call(document.querySelectorAll('.presets button'),function(b){b.className=(+b.getAttribute('data-k')===cur.limit)?'on':''})};
+  Array.prototype.forEach.call(document.querySelectorAll('.presets button'),function(b){
+    b.className=(+b.getAttribute('data-k')===kv)?'on':'';b.onclick=function(){cur.limit=+b.getAttribute('data-k');post('/dsh-dashboard/context',{conv:cur.conv,limit:cur.limit}).then(reload)}});
+  Array.prototype.forEach.call(document.querySelectorAll('.tool'),function(el){
+    el.onclick=function(){var t=el.getAttribute('data-t');var i=cur.allowSet.indexOf(t);
+      if(i>=0)cur.allowSet.splice(i,1);else cur.allowSet.push(t);
+      post('/dsh-dashboard/tools',{conv:cur.conv,allow:cur.allowSet}).then(reload)}});
+  var tsec=document.getElementById('tsec');
+  if(tsec){tsec.onclick=function(){window.toolsOpen=!window.toolsOpen;render()};}
+  document.getElementById('clr').onclick=function(){
+    if(!armed){armed=true;this.className='clear arm';this.textContent='再点一次确认清空（摘要+归档+预算归位）'}
+    else{armed=false;this.className='clear';this.textContent='已清空 ✓';post('/dsh-dashboard/clear',{conv:cur.conv}).then(reload)}}
+}
+reload();setInterval(reload,5000);
+</script>
+</body>
+</html>
