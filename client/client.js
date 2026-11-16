@@ -91,7 +91,7 @@ window.__ModuleLoader__.load({
 .dshdash-sec:hover{color:#c8cdd8}
 .dshdash-caret{margin-right:2px;display:inline-block;transition:transform .15s}
 .dshdash-caret.open{transform:rotate(90deg)}
-.dshdash-restore{position:fixed;-webkit-app-region:no-drag;z-index:2147483000;right:18px;bottom:18px;width:34px;height:34px;border-radius:50%;
+.dshdash-restore{position:fixed;-webkit-app-region:no-drag;color:#fff;z-index:2147483000;right:18px;bottom:18px;width:34px;height:34px;border-radius:50%;
   background:rgba(18,21,28,.9);border:1px solid rgba(255,255,255,.16);cursor:pointer;display:flex;align-items:center;justify-content:center;
   font-size:15px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .dshdash-pill{position:fixed;-webkit-app-region:no-drag;right:18px;top:18px;padding:8px 14px;border-radius:99px;
@@ -130,12 +130,28 @@ window.__ModuleLoader__.load({
         post(API.defaults, partial).then(d => setDefaults(d.defaults || null))
       }, [])
 
+      const desktopPrevRef = useRef(null)
+
       const reload = useCallback(() => {
         fetch(API.sessions).then(r => r.json()).then(d => {
           setOnline(true)
           const list = (d.sessions || []).map(s => ({ ...s, allowSet: s.allow === null ? ALL_TOOLS.slice() : s.allow }))
           setSessions(list)
           setCur(prev => prev && list.some(s => s.conv === prev.conv) ? list.find(s => s.conv === prev.conv) : (list[0] || null))
+          // 外窗（桌宠窗）关闭后自动切回内嵌
+          if (typeof d.desktop === 'boolean') {
+            const prev = desktopPrevRef.current
+            desktopPrevRef.current = d.desktop
+            if (prev === true && d.desktop === false) {
+              try {
+                if (localStorage.getItem('dshdash:desktop') === '1') {
+                  localStorage.removeItem('dshdash:desktop')
+                  localStorage.setItem('dshdash:hidden', '0')
+                }
+              } catch {}
+              setHidden(false)
+            }
+          }
         }).catch(() => setOnline(false))
       }, [])
 
@@ -189,7 +205,7 @@ window.__ModuleLoader__.load({
         post(API.tools, { conv: cur.conv, allow: next }).then(reload)
       }
       const callOpenExternal = () => {
-        try { localStorage.setItem('dshdash:hidden', '1') } catch {}
+        try { localStorage.setItem('dshdash:hidden', '1'); localStorage.setItem('dshdash:desktop', '1') } catch {}
         setHidden(true)
         fetch('/dsh-dashboard/open-external', {
           method: 'POST',
