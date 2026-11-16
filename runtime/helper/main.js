@@ -362,6 +362,7 @@ function createWindow() {
     resizable: true,
     skipTaskbar: true,
     hasShadow: false,
+    roundedCorners: false, // macOS 透明窗：关闭系统圆角合成，避免边缘伪影
     backgroundColor: '#00000000',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

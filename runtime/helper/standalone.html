@@ -23,7 +23,9 @@
     inset: 12px;
     display: flex;
     flex-direction: column;
-    background: rgba(24, 26, 30, 0.94);
+    /* 卡片完全不透明：半透明图层会让 Chromium 关闭文字亚像素抗锯齿（偶发模糊）；
+       窗口透明感由卡片外的透明边距 + 圆角保留 */
+    background: rgba(24, 26, 30, 1);
     border-radius: 16px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
     overflow: hidden;
