@@ -62,6 +62,7 @@ window.__ModuleLoader__.load({
       const [online, setOnline] = useState(false)
       const [masterOn, setMasterOn] = useState(true)
       const dragRef = useRef(null)
+      const frameRef = useRef(null)
       const movedRef = useRef(false)
       const offsetRef = useRef(null)
       const desktopPrevRef = useRef(null)
@@ -99,7 +100,9 @@ window.__ModuleLoader__.load({
           else if (m.type === 'open-external') openExternal()
           else if (m.type === 'hide-dot') setMode('dot')
           else if (m.type === 'dragStart') {
-            offsetRef.current = { x: m.x - (pos ? pos.x : 0), y: m.y - (pos ? pos.y : 0) }
+            const el = frameRef.current
+            const r = el ? el.getBoundingClientRect() : { left: 0, top: 0 }
+            offsetRef.current = { x: m.x - r.left, y: m.y - r.top }
           } else if (m.type === 'drag') {
             if (!offsetRef.current) return
             setPos(clamp(m.x - offsetRef.current.x, m.y - offsetRef.current.y))
@@ -161,6 +164,13 @@ window.__ModuleLoader__.load({
         window.addEventListener('mouseup', up)
       }
 
+      const enterPanel = () => {
+        // 与外窗互斥：进内嵌前杀掉 helper（若在跑）
+        fetch('/dsh-dashboard/switch-to-internal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }).catch(() => {})
+        setLS(LS_LAST, 'internal')
+        setMode('panel')
+      }
+
       const dotClick = () => {
         const el = dragRef.current
         const r = el ? el.getBoundingClientRect() : { left: window.innerWidth - 60, bottom: 24 }
@@ -174,7 +184,7 @@ window.__ModuleLoader__.load({
           style: { left: popup.x + 'px', top: popup.y + 'px' },
           onMouseLeave: () => setPopup(null),
         },
-          h('div', { className: 'mi', onClick: () => { setPopup(null); setMode('panel'); setLS(LS_LAST, 'internal') } }, '进入内嵌模式'),
+          h('div', { className: 'mi', onClick: () => { setPopup(null); enterPanel() } }, '进入内嵌模式'),
           h('div', { className: 'mi', onClick: () => { setPopup(null); openExternal() } }, '打开外窗'),
           h('div', { className: 'mi hint' }, '完全关闭：设置 → 插件 → 关闭 dsh-dashboard'),
         ) : null
@@ -193,7 +203,7 @@ window.__ModuleLoader__.load({
           title: '单击：外窗/内嵌（按上次模式）',
           onClick: () => {
             if (movedRef.current) { movedRef.current = false; return }
-            if (lastMode() === 'internal') { setMode('panel') }
+            if (lastMode() === 'internal') { enterPanel() }
             else openExternal()
           },
         }, h('span', { className: 'dshdash-dotdot ' + (online ? 'on' : 'off') }), '会话控制台')
@@ -201,7 +211,7 @@ window.__ModuleLoader__.load({
 
       // panel：iframe 承载唯一 UI
       const st = pos ? { left: pos.x + 'px', top: pos.y + 'px', right: 'auto', bottom: 'auto' } : { right: '18px', bottom: '18px' }
-      return h('iframe', { className: 'dshdash-frame', style: st, src: '/dsh-dashboard/standalone' })
+      return h('iframe', { className: 'dshdash-frame', ref: frameRef, style: st, src: '/dsh-dashboard/standalone' })
     }
 
     function SettingsSection() {
