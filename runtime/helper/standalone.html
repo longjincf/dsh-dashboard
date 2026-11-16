@@ -407,6 +407,13 @@ function pollAll() {
       defaults.budget = data.defaultBudget === undefined ? null : data.defaultBudget;
       // 选中会话已被清除则取消选中
       if (selectedId && !sessions.some(function (s) { return s.id === selectedId; })) selectedId = null;
+      // 重启恢复：宿主持久化的选中会话（页面首次加载/选中为空时）
+      if (!selectedId && data.selectedSessionId && sessions.some(function (s) { return s.id === data.selectedSessionId; })) {
+        selectedId = data.selectedSessionId;
+        usage = { sessionId: selectedId, tokens: null };
+        refreshUsage();
+        refreshTools();
+      }
       renderSessions();
       renderDetail();
       renderDefaults();
@@ -453,6 +460,8 @@ function renderSessions() {
     row.addEventListener('click', function () {
       selectedId = s.id; // 单击选中高亮
       usage = { sessionId: s.id, tokens: null }; // 切换会话：清掉旧会话用量
+      // 同步宿主持久化选中（失败静默：仅影响重启后恢复）
+      apiPost('/api/select', { query: s.id }).catch(function () {});
       renderSessions();
       renderDetail();
       refreshUsage(); // 选中变化立即拉取用量

@@ -141,6 +141,15 @@
     });
   }
 
+  /** POST {ROUTE}/select：按会话标题/ID 选中（宿主持久化，外窗跟随） */
+  function postSelect(query) {
+    return request("/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: query }),
+    });
+  }
+
   /** 齿轮 SVG path（白色，fill-rule=evenodd 挖出中心孔） */
   const GEAR_PATH =
     "M 32.00 2.00 A 30 30 0 0 1 42.26 3.81 L 39.87 10.39 A 23 23 0 0 1 48.26 15.74 L 53.21 10.79 M 53.21 10.79 A 30 30 0 0 1 59.19 19.32 L 52.85 22.28 A 23 23 0 0 1 55.00 32.00 L 62.00 32.00 M 62.00 32.00 A 30 30 0 0 1 60.19 42.26 L 53.61 39.87 A 23 23 0 0 1 48.26 48.26 L 53.21 53.21 M 53.21 53.21 A 30 30 0 0 1 44.68 59.19 L 41.72 52.85 A 23 23 0 0 1 32.00 55.00 L 32.00 62.00 M 32.00 62.00 A 30 30 0 0 1 21.74 60.19 L 24.13 53.61 A 23 23 0 0 1 15.74 48.26 L 10.79 53.21 M 10.79 53.21 A 30 30 0 0 1 4.81 44.68 L 11.15 41.72 A 23 23 0 0 1 9.00 32.00 L 2.00 32.00 M 2.00 32.00 A 30 30 0 0 1 3.81 21.74 L 10.39 24.13 A 23 23 0 0 1 15.74 15.74 L 10.79 10.79 M 10.79 10.79 A 30 30 0 0 1 19.32 4.81 L 22.28 11.15 A 23 23 0 0 1 32.00 9.00 L 32.00 2.00 M 32.00 24.50 A 7.5 7.5 0 1 1 32.00 24.50 A 7.5 7.5 0 1 1 32.00 24.50";
@@ -186,6 +195,19 @@
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
   color: var(--dsw-alias-label-primary, rgba(0, 0, 0, 0.85));
 }
+.dash-pop-select { display: flex; gap: 6px; }
+.dash-pop-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.15));
+  border-radius: var(--dsw-radius-sm, 8px);
+  background: var(--dsw-alias-bg-base, #ffffff);
+  color: var(--dsw-alias-label-primary, rgba(0, 0, 0, 0.85));
+}
+.dash-pop-msg { font-size: 12px; color: var(--dsw-alias-label-secondary, rgba(0, 0, 0, 0.6)); }
+.dash-pop-msg.err { color: var(--dsw-alias-state-error-primary, #d33); }
 .dash-gear-pop .dash-btn { width: 100%; }
 .dash-btn {
   padding: 8px 10px;
@@ -293,6 +315,7 @@
         on: false,
         port: 0,
         downloading: false,
+        selected: null, // { id, title } 控制台当前选中会话（跨重启持久化）
       };
 
       /** 每 2s 轮询一次宿主状态；组件卸载时清理定时器 */
@@ -334,6 +357,9 @@
         const [openStatus, setOpenStatus] = useState("idle"); /* idle|opening|ok|error */
         const [openError, setOpenError] = useState("");
         const [closeBusy, setCloseBusy] = useState(false);
+        const [selectQuery, setSelectQuery] = useState("");
+        const [selectStatus, setSelectStatus] = useState("idle"); /* idle|busy|ok|error */
+        const [selectMsg, setSelectMsg] = useState("");
 
         const gearRef = useRef(null); /* 齿轮按钮 DOM */
         const popRef = useRef(null); /* 设置弹窗 DOM */
@@ -390,6 +416,33 @@
             }
           },
           [closeBusy, setState]
+        );
+
+        /* ③ 选中会话：POST select（标题/ID 模糊匹配，宿主持久化，外窗跟随） */
+        const handleSelect = useCallback(
+          async function () {
+            const q = (selectQuery || "").trim();
+            if (!q || selectStatus === "busy") return;
+            setSelectStatus("busy");
+            setSelectMsg("");
+            try {
+              const res = await postSelect(q);
+              if (res && res.ok) {
+                setSelectStatus("ok");
+                setSelectMsg("已选中：" + (res.title || res.id));
+                setState(function (s) {
+                  return Object.assign({}, s, { selected: { id: res.id, title: res.title || "" } });
+                });
+              } else {
+                setSelectStatus("error");
+                setSelectMsg((res && res.error) || "未匹配到会话");
+              }
+            } catch (e) {
+              setSelectStatus("error");
+              setSelectMsg("无法连接宿主服务");
+            }
+          },
+          [selectQuery, selectStatus, setState]
         );
 
         /* 拖拽（window 级监听）：pointerdown 起、pointermove 跟、pointerup 判定 */
@@ -511,6 +564,47 @@
                       ? h("div", {
                           className: "dash-pop-status dash-pop-status-err",
                           children: openError,
+                        })
+                      : null,
+                    /* 选中会话：提示 + 输入框（标题/ID 模糊匹配，宿主持久化） */
+                    h("p", {
+                      className: "dash-pop-hint",
+                      children: state.selected && state.selected.id
+                        ? "控制台选中：" + (state.selected.title || state.selected.id)
+                        : "控制台未选中会话（重启后自动恢复上次选中）",
+                    }),
+                    h("div", {
+                      className: "dash-pop-select",
+                      children: [
+                        h("input", {
+                          type: "text",
+                          className: "dash-pop-input",
+                          placeholder: "会话标题 / ID",
+                          value: selectQuery,
+                          onChange: function (ev) {
+                            setSelectQuery(ev.target.value);
+                            setSelectStatus("idle");
+                            setSelectMsg("");
+                          },
+                          onKeyDown: function (ev) {
+                            if (ev.key === "Enter") handleSelect();
+                          },
+                          "aria-label": "按标题或ID选中会话",
+                        }),
+                        h("button", {
+                          type: "button",
+                          className: "dash-btn",
+                          disabled: selectStatus === "busy",
+                          onClick: handleSelect,
+                          children: selectStatus === "busy" ? "选中中…" : "选中",
+                        }),
+                      ],
+                    }),
+                    selectMsg
+                      ? h("div", {
+                          className:
+                            "dash-pop-msg" + (selectStatus === "error" ? " err" : ""),
+                          children: selectMsg,
                         })
                       : null,
                     h("p", {
