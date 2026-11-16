@@ -200,7 +200,10 @@ function handleCtl(req, res) {
 function serveStandalone(res) {
   try {
     const html = fs.readFileSync(path.join(__dirname, 'standalone.html'));
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store' // 页面每次全新拉取，避免 Electron HTTP 缓存串旧版本
+    });
     res.end(html);
   } catch (err) {
     sendJson(res, 404, { ok: false, error: 'standalone.html not found' });
@@ -212,6 +215,8 @@ function serveStandalone(res) {
 // 剥掉 /api 前缀后拼 DSH_DASH_HOST_ORIGIN + "/dsh-dashboard/api" + 剩余路径；
 // 追加 x-dsh-dash-token 头；透传方法与请求体；10s 超时；不可达返回 502。
 function proxyToHost(req, res) {
+  const startedAt = Date.now()
+  const reqLine = req.method + ' ' + (req.url || '/')
   const base = (process.env.DSH_DASH_HOST_ORIGIN || '').trim().replace(/\/+$/, '');
   if (!base) {
     log('代理失败：未配置 DSH_DASH_HOST_ORIGIN');
@@ -251,6 +256,7 @@ function proxyToHost(req, res) {
       'Content-Type': upRes.headers['content-type'] || 'application/json; charset=utf-8'
     });
     upRes.pipe(res);
+    log('api ' + reqLine + ' → ' + upRes.statusCode + ' ' + (Date.now() - startedAt) + 'ms');
   });
 
   upstream.on('timeout', () => {
@@ -378,6 +384,8 @@ function createWindow() {
   let url = (process.env.DSH_DASH_URL || '').trim() ||
     'http://127.0.0.1:' + actualPort + '/standalone.html';
   url = url.replace(/127\.0\.0\.1:\d+/, '127.0.0.1:' + actualPort);
+  // 缓存穿透：每次开窗都带新查询串，杜绝 Electron HTTP 缓存串旧页面
+  url += (url.includes('?') ? '&' : '?') + 'v=' + Date.now();
   win.loadURL(url).catch((err) => {
     log('窗口加载失败：' + (err && err.message));
   });
