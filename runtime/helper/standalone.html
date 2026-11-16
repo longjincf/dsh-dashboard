@@ -110,6 +110,34 @@
   .mini-btn:hover { background: rgba(255, 255, 255, 0.12); }
   .mini-btn:disabled { opacity: 0.45; cursor: default; }
 
+  /* ===== token 预算：slider + 预设 chips + 右侧数值文本 ===== */
+  .budget-line { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  .budget-line .row-label { flex: 1; margin: 0; }
+  .budget-val {
+    font-size: 12px; color: #b6bcc6; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .range {
+    -webkit-appearance: none; appearance: none;
+    display: block; width: 100%; height: 4px; margin: 8px 0 6px;
+    border-radius: 2px; background: rgba(255, 255, 255, 0.16);
+    outline: none; cursor: pointer;
+  }
+  .range::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #6e8bff; border: none;
+    box-shadow: 0 0 0 3px rgba(110, 139, 255, 0.25);
+  }
+  .range::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #6e8bff; border: none;
+  }
+  .range:focus-visible { outline: 2px solid rgba(110, 139, 255, 0.7); outline-offset: 2px; }
+  .range:disabled { opacity: 0.45; cursor: default; }
+  #defaults { flex-shrink: 0; }
+  #budget-block { margin-bottom: 8px; }
+
   /* ===== 常驻选中区（列表上方；无选中时占位） ===== */
   #selected-resident {
     flex-shrink: 0;
@@ -211,11 +239,49 @@
         <div class="d-sub" id="b-head-status"></div>
       </section>
 
+      <!-- 默认模式折叠区（默认折叠）：默认 token 预算 + 默认工具白名单 -->
+      <section id="defaults">
+        <button id="btn-defaults" class="collapse-head" aria-expanded="false">
+          <span class="chev">▸</span> 默认模式
+        </button>
+        <div id="body-defaults" class="collapse-body hidden">
+          <!-- ① 默认 token 预算（null=不限制）：拖动仅更新文本，松开才保存 -->
+          <div class="budget-line">
+            <label class="row-label" for="def-budget-range">默认预算（null=不限制）</label>
+            <span class="budget-val" id="def-budget-val">不限制</span>
+          </div>
+          <input type="range" id="def-budget-range" class="range" min="1024" max="32768" step="1024" value="8192" />
+          <div class="chips">
+            <button type="button" class="chip preset" data-v="8192" aria-label="默认预算 8K">8K</button>
+            <button type="button" class="chip preset" data-v="20480" aria-label="默认预算 20K">20K</button>
+            <button type="button" class="chip preset" data-v="32768" aria-label="默认预算 32K">32K</button>
+            <button type="button" class="chip" id="btn-def-unlimit" aria-label="默认预算不限制">不限制</button>
+          </div>
+          <!-- ② 默认工具白名单（null=不限制；全不选 → null 恢复全部） -->
+          <div class="row-label" id="def-tools-note">全部允许（不限制）</div>
+          <div class="chips" id="def-tools"></div>
+        </div>
+      </section>
+
       <!-- 会话列表（内部滚动） -->
       <section id="session-list"></section>
 
-      <!-- 选中会话：工具白名单 + 清空上下文（底部常驻区） -->
+      <!-- 选中会话：token 预算 + 工具白名单 + 清空上下文（底部常驻区） -->
       <section id="detail" class="hidden">
+        <!-- token 预算块（位于白名单折叠条之前） -->
+        <section id="budget-block">
+          <div class="budget-line">
+            <label class="row-label" for="s-budget-range">token 预算</label>
+            <span class="budget-val" id="s-budget-usage">未挂载（需打开会话）</span>
+          </div>
+          <input type="range" id="s-budget-range" class="range" min="1024" max="32768" step="1024" value="8192" />
+          <div class="chips">
+            <button type="button" class="chip preset" data-v="8192" aria-label="会话预算 8K">8K</button>
+            <button type="button" class="chip preset" data-v="20480" aria-label="会话预算 20K">20K</button>
+            <button type="button" class="chip preset" data-v="32768" aria-label="会话预算 32K">32K</button>
+            <button type="button" class="chip" id="btn-s-unlimit" aria-label="会话预算不限制">不限制</button>
+          </div>
+        </section>
         <section>
           <button id="btn-tools" class="collapse-head" aria-expanded="false">
             <span class="chev">▸</span> 工具白名单
@@ -262,6 +328,12 @@ var polling = false;      // 轮询防重入
 var savingTools = false;  // 工具白名单保存中（阻止并发点击）
 var clearTimer = null;    // “清空上下文”确认复位定时器
 var toastTimer = null;    // 提示条自动隐藏定时器
+var defaults = { allow: null, budget: null }; // 默认模式：工具白名单 / token 预算（来自 /api/sessions）
+var usage = { sessionId: null, tokens: null }; // 选中会话用量缓存（GET /api/usage）
+var usageFetching = null;   // 正在拉取用量的会话 id（防重入）
+var savingBudget = false;   // 会话预算保存中（阻止并发点击）
+var savingDefaults = false; // 默认模式（预算/白名单）保存中
+var dragBudget = null;      // 会话预算拖动中的临时展示值（未提交）
 
 function $(id) { return document.getElementById(id); }
 
@@ -323,16 +395,21 @@ function pollAll() {
     if (sr.status === 'fulfilled') {
       var data = sr.value || {};
       sessions = Array.isArray(data.sessions) ? data.sessions : [];
+      defaults.allow = data.defaultAllow === undefined ? null : data.defaultAllow;
+      defaults.budget = data.defaultBudget === undefined ? null : data.defaultBudget;
       // 选中会话已被清除则取消选中
       if (selectedId && !sessions.some(function (s) { return s.id === selectedId; })) selectedId = null;
       renderSessions();
       renderDetail();
+      renderDefaults();
     }
     if (tr.status === 'fulfilled') {
       var t = tr.value || {};
       toolsCatalog = Array.isArray(t.tools) ? t.tools.slice() : toolsCatalog;
       renderDetail(); // 目录变化后刷新选中会话的 chips
+      renderDefaults(); // 目录变化后刷新默认白名单 chips
     }
+    refreshUsage(); // 每轮轮询刷新选中会话用量（失败静默保留旧文本）
 
     $('last-update').textContent = '最近更新 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
     listEl.scrollTop = scrollTop;
@@ -371,8 +448,10 @@ function renderSessions() {
     row.appendChild(sub);
     row.addEventListener('click', function () {
       selectedId = s.id; // 单击选中高亮
+      usage = { sessionId: s.id, tokens: null }; // 切换会话：清掉旧会话用量
       renderSessions();
       renderDetail();
+      refreshUsage(); // 选中变化立即拉取用量
     });
     list.appendChild(row);
   });
@@ -384,6 +463,18 @@ function renderSessions() {
 function allowSummary(allow) {
   if (allow === null || allow === undefined) return '全部允许';
   return '已限制 ' + allow.length + ' 个工具';
+}
+
+// 千分位数字格式化：2340 → "2,340"
+function fmtNum(n) {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+// 预算展示文本：null → 不限制；1024 的整数倍 → NK；其余按原值
+function budgetText(v) {
+  if (v === null || v === undefined) return '不限制';
+  if (v % 1024 === 0) return (v / 1024) + 'K';
+  return fmtNum(v);
 }
 
 function renderDetail() {
@@ -400,6 +491,7 @@ function renderDetail() {
   $('b-head-status').textContent = (s.live ? '活动' : '冷（未挂载）') + ' · ' + allowSummary(s.allow);
   $('detail').classList.remove('hidden');
   renderToolsChips(s);
+  syncSessionBudgetUI(); // 预算块：slider 位置 / 预设高亮 / 用量文本
 }
 
 // 工具白名单 chips：候选来自 GET /api/tools 的全局目录；
@@ -460,6 +552,210 @@ function saveSessionAllow(sessionId, allow) {
   });
 }
 
+/* ================= 默认模式：默认预算 + 默认工具白名单 ================= */
+
+// 默认预算控件整体禁用（保存中锁定，防并发）
+function setDefControlsDisabled(dis) {
+  $('def-budget-range').disabled = dis;
+  $('btn-def-unlimit').disabled = dis;
+  var presets = document.querySelectorAll('#body-defaults .preset');
+  for (var i = 0; i < presets.length; i++) presets[i].disabled = dis;
+}
+
+// 默认预算 UI 同步；force=true 时无视焦点强制回写（提交/回滚后使用）
+function syncDefaultBudgetUI(force) {
+  var b = defaults.budget;
+  var range = $('def-budget-range');
+  if (force || document.activeElement !== range) {
+    // null → slider 停在 8K 占位，右侧文本显示「不限制」
+    range.value = (b === null || b === undefined) ? 8192 : b;
+    $('def-budget-val').textContent = budgetText(b);
+  }
+  var presets = document.querySelectorAll('#body-defaults .preset');
+  for (var i = 0; i < presets.length; i++) {
+    presets[i].classList.toggle('on', presets[i].getAttribute('data-v') === String(b));
+  }
+}
+
+// 提交默认预算：POST /api/defaults {budget: 整数|null}（只传 budget 键）
+function commitDefaultBudget(v) {
+  if (savingDefaults) return;
+  var old = defaults.budget;
+  if (old === v) return; // 值未变则不请求
+  defaults.budget = v; // 乐观更新展示，失败回滚
+  syncDefaultBudgetUI(true);
+  savingDefaults = true;
+  setDefControlsDisabled(true);
+  apiPost('/api/defaults', { budget: v }).then(function (data) {
+    if (!data || data.ok !== true) throw new Error((data && data.error) || 'HTTP 错误');
+    if (data.defaults) {
+      defaults.allow = data.defaults.allow;
+      defaults.budget = data.defaults.budget;
+    }
+    savingDefaults = false;
+    setDefControlsDisabled(false);
+    syncDefaultBudgetUI(true);
+    renderDefaultTools();
+  }).catch(function () {
+    defaults.budget = old; // 失败：回滚旧值
+    savingDefaults = false;
+    setDefControlsDisabled(false);
+    showToast('默认预算保存失败，已回滚');
+    syncDefaultBudgetUI(true);
+    renderDefaultTools();
+  });
+}
+
+// 保存默认工具白名单：POST /api/defaults {allow:[...]|null}（只传 allow 键）
+function saveDefaultAllow(allow) {
+  if (savingDefaults) return;
+  var oldAllow = defaults.allow;
+  defaults.allow = allow; // 乐观更新展示，失败回滚
+  savingDefaults = true;
+  setDefControlsDisabled(true);
+  renderDefaultTools(); // 此时 savingDefaults=true，chips 同步禁用
+  apiPost('/api/defaults', { allow: allow }).then(function (data) {
+    if (!data || data.ok !== true) throw new Error((data && data.error) || 'HTTP 错误');
+    if (data.defaults) {
+      defaults.allow = data.defaults.allow;
+      defaults.budget = data.defaults.budget;
+    }
+    savingDefaults = false;
+    setDefControlsDisabled(false);
+    renderDefaultTools();
+    syncDefaultBudgetUI(true);
+  }).catch(function () {
+    defaults.allow = oldAllow; // 失败：回滚旧值
+    savingDefaults = false;
+    setDefControlsDisabled(false);
+    showToast('默认工具白名单保存失败，已回滚');
+    renderDefaultTools();
+    syncDefaultBudgetUI(true);
+  });
+}
+
+// 默认白名单 chips：候选来自 /api/tools 全局目录；
+// allow===null 时全部未选中并显示「全部允许（不限制）」
+function renderDefaultTools() {
+  var allow = defaults.allow;
+  var note = $('def-tools-note');
+  if (allow === null || allow === undefined) {
+    note.textContent = '全部允许（不限制）';
+  } else {
+    note.textContent = '已选中 ' + allow.length + ' 个工具';
+  }
+  var selected = Array.isArray(allow) ? allow.slice() : [];
+  var container = $('def-tools');
+  container.innerHTML = '';
+  toolsCatalog.forEach(function (t) {
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip' + (selected.indexOf(t) !== -1 ? ' on' : '');
+    chip.textContent = t;
+    chip.disabled = savingDefaults; // 保存中锁定，防并发
+    chip.setAttribute('aria-label', '切换默认工具 ' + t);
+    chip.setAttribute('aria-pressed', selected.indexOf(t) !== -1 ? 'true' : 'false');
+    chip.addEventListener('click', function () {
+      var set = selected.slice();
+      var i = set.indexOf(t);
+      if (i === -1) set.push(t); else set.splice(i, 1);
+      saveDefaultAllow(set.length ? set : null); // 全不选 → null（恢复全部）
+    });
+    container.appendChild(chip);
+  });
+}
+
+// 默认模式区整体渲染（轮询数据刷新入口）
+function renderDefaults() {
+  syncDefaultBudgetUI(false);
+  renderDefaultTools();
+}
+
+/* ================= token 预算（选中会话，位于白名单折叠条之前） ================= */
+
+// 会话预算控件整体禁用（保存中锁定）
+function setSBudgetControlsDisabled(dis) {
+  $('s-budget-range').disabled = dis;
+  $('btn-s-unlimit').disabled = dis;
+  var presets = document.querySelectorAll('#budget-block .preset');
+  for (var i = 0; i < presets.length; i++) presets[i].disabled = dis;
+}
+
+// 会话预算 UI 同步（slider 值 / 预设高亮 / 用量文本）
+function syncSessionBudgetUI(force) {
+  var s = sessions.find(function (x) { return x.id === selectedId; });
+  var b = s ? s.budget : null;
+  var range = $('s-budget-range');
+  if (force || document.activeElement !== range) {
+    // null → slider 停在 8K 占位，用量文本显示「未限制」
+    range.value = (b === null || b === undefined) ? 8192 : b;
+  }
+  var presets = document.querySelectorAll('#budget-block .preset');
+  for (var i = 0; i < presets.length; i++) {
+    presets[i].classList.toggle('on', presets[i].getAttribute('data-v') === String(b));
+  }
+  updateUsageText();
+}
+
+// 用量文本：live → 当前用量（千分位）+ 预算；非 live → 未挂载（需打开会话）
+function updateUsageText() {
+  var s = sessions.find(function (x) { return x.id === selectedId; });
+  var el = $('s-budget-usage');
+  if (!s) { el.textContent = ''; return; }
+  if (!s.live) { el.textContent = '未挂载（需打开会话）'; return; }
+  var b = dragBudget !== null ? dragBudget : s.budget; // 拖动中临时展示
+  var tok = (usage.sessionId === s.id && typeof usage.tokens === 'number')
+    ? '~' + fmtNum(usage.tokens) + ' tokens' : '…';
+  el.textContent = '当前 ' + tok + ' · 预算 ' + budgetText(b);
+}
+
+// 提交会话预算：POST /api/budget {sessionId, budget: 整数|null}
+function commitSessionBudget(v) {
+  var s = sessions.find(function (x) { return x.id === selectedId; });
+  if (!s || savingBudget) return;
+  dragBudget = null; // 结束拖动中的临时展示（值未变时也需复位）
+  if (s.budget === v) return; // 值未变则不请求
+  var old = s.budget;
+  s.budget = v; // 乐观更新展示，失败回滚
+  syncSessionBudgetUI(true);
+  savingBudget = true;
+  setSBudgetControlsDisabled(true);
+  apiPost('/api/budget', { sessionId: s.id, budget: v }).then(function (data) {
+    if (!data || data.ok !== true) throw new Error((data && data.error) || 'HTTP 错误');
+    savingBudget = false;
+    setSBudgetControlsDisabled(false);
+    syncSessionBudgetUI(true);
+  }).catch(function () {
+    s.budget = old; // 失败：回滚旧值
+    savingBudget = false;
+    setSBudgetControlsDisabled(false);
+    showToast('token 预算保存失败，已回滚');
+    syncSessionBudgetUI(true);
+  });
+}
+
+// 拉取选中会话用量：live 才请求；防重入；失败静默保留旧文本
+function refreshUsage() {
+  var s = sessions.find(function (x) { return x.id === selectedId; });
+  if (!s || !s.live) {
+    usage = { sessionId: s ? s.id : null, tokens: null };
+    renderDetail(); // 刷新「未挂载（需打开会话）」文本
+    return;
+  }
+  if (usageFetching === s.id) return; // 同一会话已在拉取
+  usageFetching = s.id;
+  apiGet('/api/usage?sessionId=' + encodeURIComponent(s.id)).then(function (data) {
+    if (usageFetching === s.id) usageFetching = null;
+    if (data && data.ok === true) {
+      usage = { sessionId: s.id, tokens: data.tokens };
+      renderDetail();
+    }
+    // ok:false（未挂载等）静默保留旧文本
+  }).catch(function () {
+    if (usageFetching === s.id) usageFetching = null; // 网络失败静默保留旧文本
+  });
+}
+
 /* ================= 清空上下文（两段确认） ================= */
 
 // 确认态复位：3s 后回到「清空上下文」
@@ -515,6 +811,56 @@ function wireCollapse(headId, bodyId) {
   });
 }
 wireCollapse('btn-tools', 'body-tools');
+wireCollapse('btn-defaults', 'body-defaults'); // 「默认模式」折叠区（默认折叠）
+
+// 默认预算 slider：拖动（input）仅更新右侧文本，松开（change）才 POST
+$('def-budget-range').addEventListener('input', function () {
+  $('def-budget-val').textContent = budgetText(Number(this.value));
+});
+$('def-budget-range').addEventListener('change', function () {
+  commitDefaultBudget(Number(this.value));
+});
+
+// 默认预算预设 chips（8K/20K/32K）与「不限制」按钮
+var defPresets = document.querySelectorAll('#body-defaults .preset');
+for (var i = 0; i < defPresets.length; i++) {
+  defPresets[i].addEventListener('click', function () {
+    var v = Number(this.getAttribute('data-v'));
+    $('def-budget-range').value = String(v);
+    commitDefaultBudget(v);
+  });
+}
+$('btn-def-unlimit').addEventListener('click', function () {
+  commitDefaultBudget(null); // 不限制 → budget 置 null
+});
+
+// 会话预算 slider：拖动（input）临时展示，松开（change）才 POST
+$('s-budget-range').addEventListener('input', function () {
+  dragBudget = Number(this.value);
+  updateUsageText();
+});
+$('s-budget-range').addEventListener('change', function () {
+  commitSessionBudget(Number(this.value));
+});
+$('s-budget-range').addEventListener('blur', function () {
+  dragBudget = null; // 焦点离开（拖动取消等）时复位临时展示
+  updateUsageText();
+});
+
+// 会话预算预设 chips（8K/20K/32K）与「不限制」按钮
+var sPresets = document.querySelectorAll('#budget-block .preset');
+for (var i = 0; i < sPresets.length; i++) {
+  sPresets[i].addEventListener('click', function () {
+    if (!selectedId) return;
+    var v = Number(this.getAttribute('data-v'));
+    $('s-budget-range').value = String(v);
+    commitSessionBudget(v);
+  });
+}
+$('btn-s-unlimit').addEventListener('click', function () {
+  if (!selectedId) return;
+  commitSessionBudget(null); // 不限制 → budget 置 null
+});
 
 // 「恢复全部」：白名单置回 null（全部允许）
 $('btn-allow-all').addEventListener('click', function () {
@@ -543,6 +889,7 @@ $('btn-close').addEventListener('click', function () { window.close(); });
   var info = window.dashInfo || {};
   $('data-source').textContent = info.hostOrigin || '-';
   $('data-source').title = info.hostOrigin || '';
+  renderDefaults();               // 默认模式区初始渲染（占位数据）
   pollAll();                    // 首次加载立即拉取
   setInterval(pollAll, 5000);   // 每 5s 轮询
 })();

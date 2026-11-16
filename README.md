@@ -13,6 +13,7 @@ DSH 插件：双模式会话控制台。**v3 起完全独立**——数据面为
 |---|---|
 | 会话列表 | `ctx.sessionQuery.listSessions()`——DSH 会话 id 唯一，**同首消息的多会话结构性区分**（无指纹合并问题） |
 | 会话标题 | `readTitleSnapshots`——与 DSH 工作区一致，重命名 ≤5s 自动同步 |
+| **Token 预算** | 每会话预算（8K/20K/32K/自定义）：`agent/pre-step` 用量达阈值时自动 `compaction.compactNow`（等价于原代理记忆层阈值压缩）；当前用量实时显示（`ctx.tokenMeter.measure`） |
 | 工具白名单 | `agent.ctx.tools.restrict({allow})`——作用域真执法（默认白名单 + 每会话白名单，改即生效） |
 | 清空上下文 | `ctx.compaction.compactNow(agent)`——与官方 /compact 同一实现（仅活动会话；冷会话提示先打开） |
 
