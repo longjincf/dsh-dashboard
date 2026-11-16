@@ -1,0 +1,10 @@
+# dsh-dashboard bundle patch：插入会话控制台插件。
+- insert:
+    - id: dsh-dashboard
+      name: 'dsh-dashboard'
+      config:
+        # llama_proxy /admin 控制面（A机代理）
+        adminBase: 'http://192.168.0.71:8080'
+        # 前端轮询间隔（毫秒）
+        pollMs: 5000
+        enabled: true

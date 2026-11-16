@@ -1,0 +1,36 @@
+{
+  "name": "dsh-dashboard",
+  "description": "本地/云端会话控制台：按会话动态调节上下文预算、工具白名单、清空上下文（对接 llama_proxy /admin）。",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./client/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "files": [
+    "lib/index.js",
+    "client/client.js",
+    "cordis.patch.yml",
+    "client/standalone.html",
+    "runtime/helper/main.js",
+    "runtime/helper/preload.js",
+    "runtime/helper/package.json",
+    "runtime/helper/standalone.html"
+  ]
+}
