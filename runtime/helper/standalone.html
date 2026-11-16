@@ -328,9 +328,10 @@
 /* ================= 本地状态 ================= */
 
 var sessions = [];        // 会话列表（来自 GET /api/sessions，按接口返回顺序渲染）
-var toolsCatalog = [];    // 全局工具目录（来自 GET /api/tools，宿主已排序）
+var toolsCatalog = [];    // 工具目录（GET /api/tools?sessionId=选中 → 该会话完整可见工具；否则全局）
 var selectedId = null;    // 当前选中会话 id
 var polling = false;      // 轮询防重入
+var toolsFetching = false; // 工具目录拉取防重入
 var savingTools = false;  // 工具白名单保存中（阻止并发点击）
 var clearTimer = null;    // “清空上下文”确认复位定时器
 var toastTimer = null;    // 提示条自动隐藏定时器
@@ -392,7 +393,10 @@ function pollAll() {
   var listEl = $('session-list');
   var scrollTop = listEl.scrollTop; // 渲染后恢复列表内部滚动位置
 
-  Promise.allSettled([apiGet('/api/sessions'), apiGet('/api/tools')]).then(function (results) {
+  Promise.allSettled([
+    apiGet('/api/sessions'),
+    apiGet('/api/tools' + (selectedId ? '?sessionId=' + encodeURIComponent(selectedId) : ''))
+  ]).then(function (results) {
     var sr = results[0]; // sessions
     var tr = results[1]; // tools 目录（变化少但一并刷新）
     // 任一失败 → 状态点变红 + 顶部提示条；全部成功 → 恢复绿
@@ -458,6 +462,7 @@ function renderSessions() {
       renderSessions();
       renderDetail();
       refreshUsage(); // 选中变化立即拉取用量
+      refreshTools(); // 选中变化立即拉取该会话的工具目录
     });
     list.appendChild(row);
   });
@@ -742,8 +747,23 @@ function commitSessionBudget(v) {
 }
 
 // 拉取选中会话用量：live 才请求；防重入；失败静默保留旧文本
-function refreshUsage() {
-  var s = sessions.find(function (x) { return x.id === selectedId; });
+/* 选中会话的工具目录刷新（选中变化时立即拉取；轮询里也带 sessionId 参数） */
+function refreshTools() {
+  if (toolsFetching) return;
+  toolsFetching = true;
+  var url = '/api/tools' + (selectedId ? '?sessionId=' + encodeURIComponent(selectedId) : '');
+  apiGet(url).then(function (data) {
+    if (data && Array.isArray(data.tools) && data.tools.length) toolsCatalog = data.tools.slice();
+    renderDetail();
+    renderDefaultTools();
+  }).catch(function () {
+    /* 目录拉取失败：保留旧目录 */
+  }).then(function () {
+    toolsFetching = false;
+  });
+}
+
+function refreshUsage() {  var s = sessions.find(function (x) { return x.id === selectedId; });
   if (!s || !s.live) {
     usage = { sessionId: s ? s.id : null, tokens: null };
     renderDetail(); // 刷新「未挂载（需打开会话）」文本
