@@ -62,7 +62,15 @@ window.__ModuleLoader__.load({
 
     function Dash() {
       const [mode, setMode] = useState('pill')           // dot | pill | panel
-      const [pos, setPos] = useState(null)               // pill/panel 共享位置
+      const loadPos = (k) => {
+        try {
+          const p = JSON.parse(getLS(k))
+          if (p && Number.isFinite(p.x) && Number.isFinite(p.y) && p.x > 24 && p.y > 24 && p.x < window.innerWidth && p.y < window.innerHeight) return p
+        } catch {}
+        return null
+      }
+      const [pos, setPos] = useState(() => loadPos(LS_POS))   // panel 位置
+      const [pillPos, setPillPos] = useState(() => loadPos('dshdash:pill-pos'))
       const [dotPos, setDotPos] = useState(() => { try { return JSON.parse(getLS(LS_DOT)) } catch { return null } })
       const [popup, setPopup] = useState(null)           // ⚙ 弹窗 {x,y}
       const [online, setOnline] = useState(false)
@@ -148,7 +156,7 @@ window.__ModuleLoader__.load({
         const el = dragRef.current
         if (!el) return
         const rect = el.getBoundingClientRect()
-        const base = (mode === 'dot' ? dotPos : pos) || { x: rect.left, y: rect.top }
+        const base = (mode === 'dot' ? dotPos : (mode === 'pill' ? pillPos : pos)) || { x: rect.left, y: rect.top }
         const sx = e.clientX - base.x, sy = e.clientY - base.y
         movedRef.current = false
         const move = (ev) => {
