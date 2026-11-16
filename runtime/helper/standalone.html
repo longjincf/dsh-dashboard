@@ -77,10 +77,19 @@ document.getElementById('bClose').onclick=function(){ if(IN_DSH){ post('hide-dot
 document.getElementById('bGear').onclick=function(){
   popupShow(
     (IN_DSH
-      ? '<div class="mi" onclick="post('fold')" style="padding:7px 10px;border-radius:7px;cursor:pointer">折叠到胶囊</div>'
-        + '<div class="mi" onclick="post('open-external')" style="padding:7px 10px;border-radius:7px;cursor:pointer">切到外窗</div>'
-      : '<div class="mi" onclick="window.dshdash&&window.dshdash.close()" style="padding:7px 10px;border-radius:7px;cursor:pointer">切回内嵌</div>')
+      ? '<div class="mi" data-a="fold" style="padding:7px 10px;border-radius:7px;cursor:pointer">折叠到胶囊</div>'
+        + '<div class="mi" data-a="external" style="padding:7px 10px;border-radius:7px;cursor:pointer">切到外窗</div>'
+      : '<div class="mi" data-a="close" style="padding:7px 10px;border-radius:7px;cursor:pointer">切回内嵌</div>')
     + '<div style="padding:7px 10px;color:#8b93a5;font-size:11.5px">完全关闭：设置 → 插件 → 关闭 dsh-dashboard</div>');
+  Array.prototype.forEach.call(document.querySelectorAll('#popup .mi'), function(el){
+    el.onclick = function(){
+      var act = el.getAttribute('data-a');
+      if (act === 'fold') post('fold');
+      else if (act === 'external') post('open-external');
+      else if (act === 'close') { if (HELPER) window.dshdash.close(); }
+      document.getElementById('popup').style.display = 'none';
+    };
+  });
 };
 // iframe 内拖拽：把鼠标坐标转发给父壳（iframe 会吞掉事件，父壳拿不到）
 if (IN_DSH) {

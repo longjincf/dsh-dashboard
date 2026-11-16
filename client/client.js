@@ -219,21 +219,21 @@ window.__ModuleLoader__.load({
           .then(r => r.json()).then(d => { if (d.starting) setMsg(d.message || '准备中') ; else if (!d.opened) setMsg('启动失败：' + (d.error || '')) ; else setMsg('') })
           .catch(() => setMsg('启动失败'))
       }
-      const btn = { padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,.15)', background: 'rgba(79,140,255,.14)', color: '#9db9f5', cursor: 'pointer', fontSize: 13 }
-      return h('div', { style: { padding: '16px 20px', fontSize: 13, lineHeight: 1.7, color: '#e8ecf4' } },
-        h('div', { style: { fontWeight: 600, fontSize: 15, marginBottom: 8 } }, '控制台设置'),
-        h('div', { style: { color: '#8b93a5' } },
+      const btn = { padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(0,0,0,.18)', background: '#2f6fe4', color: '#fff', cursor: 'pointer', fontSize: 13 }
+      return h('div', { style: { padding: '16px 20px', fontSize: 13, lineHeight: 1.7, color: '#16181d' } },
+        h('div', { style: { fontWeight: 600, fontSize: 15, marginBottom: 8, color: '#0e1013' } }, '控制台设置'),
+        h('div', { style: { color: '#4a5160' } },
           '管理本地（A机 Qwen）会话的上下文预算、工具白名单与清空操作；新会话自动继承默认模式。'),
         h('div', { style: { marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' } },
           h('span', null, '总开关：', h('b', null, on === null ? '…' : (on ? '已开启' : '已关闭'))),
           on === true ? h('button', { style: btn, onClick: () => setMaster(false) }, '关闭控制台')
                       : h('button', { style: btn, onClick: () => setMaster(true) }, '开启控制台'),
           h('button', { style: btn, onClick: openExt }, '打开外窗')),
-        h('div', { style: { marginTop: 12, padding: '10px 12px', borderRadius: 8, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.09)' } },
+        h('div', { style: { marginTop: 12, padding: '10px 12px', borderRadius: 8, background: 'rgba(0,0,0,.03)', border: '1px solid rgba(0,0,0,.1)' } },
           h('div', null, '控制面：', h('b', null, ' http://192.168.0.71:8080/admin')),
           h('div', null, '轮询间隔：5 秒'),
-          h('div', { style: { color: '#8b93a5', marginTop: 6, fontSize: 12 } }, '硬关闭：DSH 插件管理里禁用 dsh-dashboard；重新开启即恢复。')),
-        msg ? h('div', { style: { color: '#f0b95c', marginTop: 8 } }, msg) : null,
+          h('div', { style: { color: '#4a5160', marginTop: 6, fontSize: 12 } }, '硬关闭：DSH 插件管理里禁用 dsh-dashboard；重新开启即恢复。')),
+        msg ? h('div', { style: { color: '#b26a00', marginTop: 8 } }, msg) : null,
       )
     }
 
