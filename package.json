@@ -1,20 +1,28 @@
 {
   "name": "dsh-dashboard",
-  "description": "本地/云端会话控制台：按会话动态调节上下文预算、工具白名单、清空上下文（对接 llama_proxy /admin）。",
-  "version": "0.1.0",
-  "type": "module",
+  "version": "1.0.0",
   "private": true,
-  "license": "MIT",
+  "description": "会话控制台：DSH 内 ⚙ 小齿轮 + 透明置顶外窗，直连 llama_proxy /admin 控制面，管理会话预算、工具白名单与上下文清空",
+  "icon": "icon.svg",
+  "type": "module",
   "main": "lib/index.js",
   "exports": {
-    ".": {
-      "default": "./lib/index.js"
-    },
-    "./client": {
-      "default": "./client/client.js"
-    },
+    ".": "./lib/index.js",
+    "./client": "./client/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
     "./package.json": "./package.json"
   },
+  "files": [
+    "lib",
+    "client",
+    "locale",
+    "runtime",
+    "cordis.patch.yml",
+    "icon.svg",
+    "LICENSE",
+    "README.md"
+  ],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -23,14 +31,6 @@
       "platform": "web"
     }
   },
-  "files": [
-    "lib/index.js",
-    "client/client.js",
-    "cordis.patch.yml",
-    "client/standalone.html",
-    "runtime/helper/main.js",
-    "runtime/helper/preload.js",
-    "runtime/helper/package.json",
-    "runtime/helper/standalone.html"
-  ]
+  "license": "MIT",
+  "author": "longjincf"
 }

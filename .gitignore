@@ -1,3 +1,8 @@
 node_modules/
 *.log
 .DS_Store
+# 助手脚本内含凭据，严禁入库（防御性声明）
+ssh071
+ssh071*
+ssh220
+ssh220*

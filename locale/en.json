@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Session Console",
+    "description": "Gear widget in DSH plus a transparent always-on-top window that manages llama_proxy session budgets, tool allowlists and context clearing."
+  }
+}

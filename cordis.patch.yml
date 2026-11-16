@@ -1,10 +1,14 @@
-# dsh-dashboard bundle patch：插入会话控制台插件。
+# dsh-dashboard bundle patch：把会话控制台插件挂进 DSH 配置树。
+#
+# - insert：往配置树添加新插件行；id 全局唯一且与包名一致（商城预检按它抓 entry ID）。
+# - name: 'dsh-dashboard' 解析包入口 lib/index.js（宿主半侧）；
+#   package.json 声明了 dsh.client，DSH 模块系统同时按 exports["./client"] 提供浏览器半侧。
+# - config 为行级配置：adminBase = llama_proxy 地址；pollMs = 轮询间隔；
+#   enabled 仅为兼容既有 profile 残留配置，实际总开关以 ~/.dsh/dsh-dashboard/master.json 为准。
 - insert:
     - id: dsh-dashboard
       name: 'dsh-dashboard'
       config:
-        # llama_proxy /admin 控制面（A机代理）
         adminBase: 'http://192.168.0.71:8080'
-        # 前端轮询间隔（毫秒）
         pollMs: 5000
         enabled: true
