@@ -62,6 +62,15 @@ window.__ModuleLoader__.load({
 
     function Dash() {
       const [mode, setMode] = useState('pill')           // dot | pill | panel
+      const applyMode = (m) => {
+        setMode(m)
+        try { window.dispatchEvent(new CustomEvent('dshdash:mode-sync', { detail: m })) } catch {}
+      }
+      useEffect(() => {
+        const sync = (e) => { if (e && e.detail && (e.detail === 'dot' || e.detail === 'pill' || e.detail === 'panel')) setMode(e.detail) }
+        window.addEventListener('dshdash:mode-sync', sync)
+        return () => window.removeEventListener('dshdash:mode-sync', sync)
+      }, [])
       const loadPos = (k) => {
         try {
           const p = JSON.parse(getLS(k))
@@ -90,7 +99,7 @@ window.__ModuleLoader__.load({
       const openExternal = useCallback(() => {
         setLS(LS_DESKTOP, '1')
         setLS(LS_LAST, 'external')
-        setMode('dot')
+        applyMode('dot')
         fetch('/dsh-dashboard/open-external', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -100,9 +109,9 @@ window.__ModuleLoader__.load({
             alert(d.message || '首次启动需准备 Electron，完成后自动弹出，请稍后再次点击')
           } else if (!d.opened) {
             alert('启动失败：' + (d.error || '未知原因'))
-            setMode('pill')
+            applyMode('pill')
           }
-        }).catch(() => { alert('启动请求失败'); setMode('pill') })
+        }).catch(() => { alert('启动请求失败'); applyMode('pill') })
       }, [])
 
       // iframe 页面 → 壳 通信
@@ -110,9 +119,9 @@ window.__ModuleLoader__.load({
         const onMsg = (e) => {
           const m = e.data
           if (!m || typeof m.type !== 'string' || m.source !== 'dshdash') return
-          if (m.type === 'fold') { setMode('pill'); setLS(LS_LAST, 'internal') }
+          if (m.type === 'fold') { applyMode('pill'); setLS(LS_LAST, 'internal') }
           else if (m.type === 'open-external') openExternal()
-          else if (m.type === 'hide-dot') setMode('dot')
+          else if (m.type === 'hide-dot') applyMode('dot')
           else if (m.type === 'dragStart') {
             const el = frameRef.current
             const r = el ? el.getBoundingClientRect() : { left: 0, top: 0 }
@@ -137,7 +146,7 @@ window.__ModuleLoader__.load({
             if (prev === true && d.desktop === false && getLS(LS_DESKTOP) === '1') {
               delLS(LS_DESKTOP)
               setLS(LS_LAST, 'internal')
-              setMode('panel')
+              applyMode('panel')
             }
           }
         }).catch(() => setOnline(false))
@@ -183,7 +192,7 @@ window.__ModuleLoader__.load({
         // 与外窗互斥：进内嵌前杀掉 helper（若在跑）
         fetch('/dsh-dashboard/switch-to-internal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }).catch(() => {})
         setLS(LS_LAST, 'internal')
-        setMode('panel')
+        applyMode('panel')
       }
 
       const dotClick = () => {
