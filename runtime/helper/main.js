@@ -251,10 +251,15 @@ function proxyToHost(req, res) {
     headers: headers,
     timeout: 30000 // 30s 超时：宿主冷启动读 281 会话标题可达 ~10s，10s 会误判数据源不可达
   }, (upRes) => {
-    // 成功：透传状态码、Content-Type 与响应体
-    res.writeHead(upRes.statusCode, {
-      'Content-Type': upRes.headers['content-type'] || 'application/json; charset=utf-8'
-    });
+    // 成功：透传状态码与全部响应头（保留 content-encoding！丢它会导致 gzip 体被当明文解析）
+    // 仅剥除逐跳头（hop-by-hop）
+    const respHeaders = {};
+    for (const k of Object.keys(upRes.headers)) {
+      const lk = k.toLowerCase();
+      if (lk === 'connection' || lk === 'keep-alive' || lk === 'transfer-encoding' || lk === 'upgrade') continue;
+      if (upRes.headers[k] !== undefined) respHeaders[k] = upRes.headers[k];
+    }
+    res.writeHead(upRes.statusCode, respHeaders);
     upRes.pipe(res);
     log('api ' + reqLine + ' → ' + upRes.statusCode + ' ' + (Date.now() - startedAt) + 'ms');
   });
