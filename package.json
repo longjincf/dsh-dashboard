@@ -2,7 +2,7 @@
   "name": "dsh-dashboard",
   "version": "1.0.0",
   "private": true,
-  "description": "会话控制台：DSH 内 ⚙ 小齿轮 + 透明置顶外窗，直连 llama_proxy /admin 控制面，管理会话预算、工具白名单与上下文清空",
+  "description": "会话控制台：DSH 内 ⚙ 小齿轮 + 透明置顶外窗，管理 DSH 会话（列表/标题/工具白名单真执法/清空上下文压缩），完全 DSH 原生、无外部依赖",
   "icon": "icon.svg",
   "type": "module",
   "main": "lib/index.js",

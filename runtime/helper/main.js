@@ -9,10 +9,10 @@
  *  3. require('electron') 抛错（未安装 Electron 包）→ 同样仅起 HTTP 服务器。
  *
  * 环境变量契约（宿主注入，勿改）：
- *   DSH_DASH_HOST_PID   宿主进程 pid（看门狗探测目标）
- *   DSH_DASH_ADMIN_BASE llama_proxy 根地址，如 http://192.168.0.71:8080
- *   DSH_DASH_TOKEN      随机鉴权 token（/__ctl 校验）
- *   DSH_DASH_PORT       首选端口（8792 起）
+ *   DSH_DASH_HOST_PID    宿主进程 pid（看门狗探测目标）
+ *   DSH_DASH_HOST_ORIGIN 宿主 webServer 源，如 http://127.0.0.1:49692（/api/* 数据源）
+ *   DSH_DASH_TOKEN       随机鉴权 token（/__ctl 校验；转发 /api/* 时作为 x-dsh-dash-token 头）
+ *   DSH_DASH_PORT        首选端口（8792 起）
  *   DSH_DASH_URL        外窗 URL 模板 http://127.0.0.1:<端口>/standalone.html
  *   DSH_DASH_STATE_DIR  状态目录（存 window-state.json）
  *   DSH_DASH_LOG        日志文件路径
@@ -131,7 +131,7 @@ function handleRequest(req, res) {
     return serveStandalone(res);
   }
   if (urlPath.startsWith('/api')) {
-    return proxyToAdmin(req, res);
+    return proxyToHost(req, res);
   }
   sendJson(res, 404, { ok: false, error: 'not found' });
 }
@@ -207,24 +207,24 @@ function serveStandalone(res) {
   }
 }
 
-/* ================= /api/* 反向代理 ================= */
+/* ================= /api/* 反向代理（→ DSH 宿主） ================= */
 
-// 剥掉 /api 前缀后拼 DSH_DASH_ADMIN_BASE + "/admin" + 剩余路径；
-// 透传方法与请求体；10s 超时；不可达返回 502。
-function proxyToAdmin(req, res) {
-  const base = (process.env.DSH_DASH_ADMIN_BASE || '').trim().replace(/\/+$/, '');
+// 剥掉 /api 前缀后拼 DSH_DASH_HOST_ORIGIN + "/dsh-dashboard/api" + 剩余路径；
+// 追加 x-dsh-dash-token 头；透传方法与请求体；10s 超时；不可达返回 502。
+function proxyToHost(req, res) {
+  const base = (process.env.DSH_DASH_HOST_ORIGIN || '').trim().replace(/\/+$/, '');
   if (!base) {
-    log('代理失败：未配置 DSH_DASH_ADMIN_BASE');
-    return sendJson(res, 502, { ok: false, error: '代理不可达' });
+    log('代理失败：未配置 DSH_DASH_HOST_ORIGIN');
+    return sendJson(res, 502, { ok: false, error: '数据源不可达' });
   }
 
   let target;
   try {
     const rest = (req.url || '/').replace(/^\/api/, '') || '/';
-    target = new URL(base + '/admin' + rest); // 含 query，一并透传
+    target = new URL(base + '/dsh-dashboard/api' + rest); // 含 query，一并透传
   } catch (err) {
-    log('代理失败：DSH_DASH_ADMIN_BASE 解析出错 ' + err.message);
-    return sendJson(res, 502, { ok: false, error: '代理不可达' });
+    log('代理失败：DSH_DASH_HOST_ORIGIN 解析出错 ' + err.message);
+    return sendJson(res, 502, { ok: false, error: '数据源不可达' });
   }
 
   const isHttps = target.protocol === 'https:';
@@ -235,6 +235,7 @@ function proxyToAdmin(req, res) {
     if (req.headers[k] !== undefined) headers[k] = req.headers[k];
   }
   headers.host = target.host;
+  headers['x-dsh-dash-token'] = process.env.DSH_DASH_TOKEN || '';
 
   const upstream = mod.request({
     protocol: target.protocol,
@@ -259,7 +260,7 @@ function proxyToAdmin(req, res) {
   upstream.on('error', (err) => {
     log('代理不可达：' + (err && err.message));
     if (!res.headersSent) {
-      sendJson(res, 502, { ok: false, error: '代理不可达' });
+      sendJson(res, 502, { ok: false, error: '数据源不可达' });
     } else {
       res.destroy();
     }

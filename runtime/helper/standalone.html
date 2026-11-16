@@ -47,7 +47,7 @@
     background: transparent; color: #cfd4dc; font-size: 14px; cursor: pointer;
   }
   .icon-btn:hover { background: rgba(255, 255, 255, 0.10); }
-  /* 状态点：绿=代理可达，红=代理不可达，灰=检测中 */
+  /* 状态点：绿=数据源可达，红=数据源不可达，灰=检测中 */
   .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
   .dot.green { background: #34c759; box-shadow: 0 0 6px rgba(52, 199, 89, 0.8); }
   .dot.red   { background: #ff5f57; box-shadow: 0 0 6px rgba(255, 95, 87, 0.8); }
@@ -64,7 +64,7 @@
   }
   .hidden { display: none !important; }
 
-  /* ===== 中间区：常驻面板 + 内部滚动列表 ===== */
+  /* ===== 中间区：常驻面板 + 内部滚动列表 + 底部常驻详情 ===== */
   #middle { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
 
   /* 折叠条 */
@@ -86,19 +86,9 @@
     flex-shrink: 0;
   }
 
-  /* 行标签 / 滑块 / 下拉 */
+  /* 行标签 */
   .row-label { font-size: 12px; color: #9aa0a8; margin: 10px 0 4px; }
   .row-label:first-child { margin-top: 0; }
-  .slider-row { display: flex; align-items: center; gap: 10px; }
-  input[type="range"] { flex: 1; accent-color: #6e8bff; }
-  .value { min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; color: #b8bec6; }
-  .value.is-default { color: #8a9099; font-size: 12px; }
-  select {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.07); color: #e8eaed;
-    border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px;
-    padding: 5px 8px; font-size: 13px;
-  }
 
   /* chips */
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
@@ -108,19 +98,30 @@
     padding: 3px 10px; font-size: 12px; cursor: pointer;
   }
   .chip.on { background: rgba(110, 139, 255, 0.30); border-color: #6e8bff; color: #fff; }
+  .chip:disabled { opacity: 0.55; cursor: default; }
 
-  /* ===== 常驻预算框（选中会话；无选中时占位禁用） ===== */
-  #budget-resident {
+  /* 小按钮（如「恢复全部」） */
+  .mini-btn {
+    margin-top: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.20); border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06); color: #cfd4dc;
+    padding: 4px 12px; font-size: 12px; cursor: pointer;
+  }
+  .mini-btn:hover { background: rgba(255, 255, 255, 0.12); }
+  .mini-btn:disabled { opacity: 0.45; cursor: default; }
+
+  /* ===== 常驻选中区（列表上方；无选中时占位） ===== */
+  #selected-resident {
     flex-shrink: 0;
     padding: 10px 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(0, 0, 0, 0.15);
   }
-  #budget-resident .d-head {
+  #selected-resident .d-head {
     font-size: 13px; font-weight: 600; margin-bottom: 2px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  input[type="range"]:disabled { opacity: 0.4; }
+  .d-sub { font-size: 11px; color: #8a9099; }
 
   /* ===== 会话列表（内部滚动） ===== */
   #session-list { flex: 1; min-height: 0; overflow-y: auto; }
@@ -139,16 +140,12 @@
   .s-sub { font-size: 11px; color: #8a9099; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .empty { padding: 18px 12px; color: #7d838c; text-align: center; }
 
-  /* ===== 选中会话详情 ===== */
+  /* ===== 选中会话详情（底部常驻区） ===== */
   #detail {
     flex-shrink: 0;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     padding: 10px 12px;
     background: rgba(0, 0, 0, 0.18);
-  }
-  #detail .d-head {
-    font-size: 13px; font-weight: 600; margin-bottom: 2px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   #detail .collapse-head { padding: 7px 4px; }
   #detail .collapse-body { padding: 8px 4px; }
@@ -185,12 +182,13 @@
     background: #6e8bff; color: #fff; font-size: 13px; cursor: pointer;
   }
 
-  /* ===== 错误提示条 ===== */
+  /* ===== 提示条（默认错误红；.ok 成功绿） ===== */
   #toast {
     position: fixed; left: 50%; bottom: 46px; transform: translateX(-50%);
     background: rgba(200, 60, 60, 0.92); color: #fff; font-size: 12px;
     padding: 6px 12px; border-radius: 8px; z-index: 20; max-width: 90%;
   }
+  #toast.ok { background: rgba(52, 199, 89, 0.95); }
 </style>
 </head>
 <body>
@@ -203,75 +201,38 @@
       <button id="btn-close" class="icon-btn no-drag" aria-label="关闭窗口">✕</button>
     </header>
 
-    <!-- 代理不可达提示条 -->
-    <div id="banner" class="hidden">代理不可达，重试中</div>
+    <!-- 数据源不可达提示条 -->
+    <div id="banner" class="hidden">数据源不可达，重试中</div>
 
     <main id="middle">
-      <!-- 默认模式折叠条（默认折叠） -->
-      <section>
-        <button id="btn-defaults" class="collapse-head" aria-expanded="false">
-          <span class="chev">▸</span> 默认模式
-        </button>
-        <div id="body-defaults" class="collapse-body hidden">
-          <div class="row-label">预算（1024 ~ 32768，步进 1024）</div>
-          <div class="slider-row">
-            <input type="range" id="d-limit" min="1024" max="32768" step="1024" aria-label="默认预算" />
-            <span id="d-limit-text" class="value is-default">默认</span>
-          </div>
-          <div class="chips" id="d-presets">
-            <button type="button" class="chip" data-k="8192">8K</button>
-            <button type="button" class="chip" data-k="20480">20K</button>
-            <button type="button" class="chip" data-k="32768">32K</button>
-          </div>
-          <div class="row-label">思考</div>
-          <select id="d-thinking" aria-label="思考模式">
-            <option value="auto">自动</option>
-            <option value="off">关</option>
-            <option value="low">低</option>
-            <option value="med">中</option>
-            <option value="high">高</option>
-          </select>
-          <div class="row-label">工具白名单（全不选 = 全部允许）</div>
-          <div class="chips" id="d-tools"></div>
-        </div>
-      </section>
-
-      <!-- 常驻预算框：选中会话的预算（无选中时占位禁用） -->
-      <section id="budget-resident">
+      <!-- 常驻选中区：选中会话标题 + 状态小字（无选中时占位） -->
+      <section id="selected-resident">
         <div class="d-head" id="b-head-title">未选中会话</div>
-        <div class="row-label">预算（改即存）</div>
-        <div class="slider-row">
-          <input type="range" id="s-limit" min="1024" max="32768" step="1024" aria-label="会话预算" disabled />
-          <span id="s-limit-text" class="value is-default">默认</span>
-        </div>
-        <div class="chips" id="s-presets">
-          <button type="button" class="chip" data-k="8192">8K</button>
-          <button type="button" class="chip" data-k="20480">20K</button>
-          <button type="button" class="chip" data-k="32768">32K</button>
-        </div>
+        <div class="d-sub" id="b-head-status"></div>
       </section>
 
       <!-- 会话列表（内部滚动） -->
       <section id="session-list"></section>
 
-      <!-- 选中会话：工具白名单 + 清空（底部常驻区） -->
+      <!-- 选中会话：工具白名单 + 清空上下文（底部常驻区） -->
       <section id="detail" class="hidden">
         <section>
           <button id="btn-tools" class="collapse-head" aria-expanded="false">
             <span class="chev">▸</span> 工具白名单
           </button>
           <div id="body-tools" class="collapse-body hidden">
-            <div class="row-label">全不选 = 全部允许</div>
+            <div class="row-label" id="s-tools-note"></div>
             <div class="chips" id="s-tools"></div>
+            <button id="btn-allow-all" class="mini-btn" aria-label="恢复全部">恢复全部</button>
           </div>
         </section>
         <button id="btn-clear" class="danger" aria-label="清空上下文">清空上下文</button>
       </section>
     </main>
 
-    <!-- 页脚：控制面地址 + 轮询频率 + 最近更新时间 -->
+    <!-- 页脚：数据源 + 轮询频率 + 最近更新时间 -->
     <footer id="footer">
-      <span class="grow" id="admin-base" title="控制面地址">-</span>
+      <span class="grow" id="data-source" title="数据源">-</span>
       <span>5s 轮询</span>
       <span id="last-update">最近更新 -</span>
     </footer>
@@ -281,57 +242,36 @@
   <div id="modal-mask" class="hidden" role="dialog" aria-modal="true" aria-label="使用说明">
     <div id="modal">
       <h3>说明</h3>
-      <p>✕ 仅关闭窗口，进程保留，可点 DSH 内齿轮弹窗的“打开外窗”快速复现；完全关闭请在齿轮弹窗选“关闭控制台”或设置页关闭总开关。</p>
+      <p>✕ 仅关闭窗口，进程保留，可点 DSH 内齿轮弹窗的“打开外窗”快速复现；完全关闭请在齿轮弹窗选“关闭控制台”或设置页关闭总开关。数据源为 DSH 会话；工具白名单与清空上下文对 DSH 会话生效。</p>
       <button id="btn-modal-close">知道了</button>
     </div>
   </div>
 
-  <!-- 错误提示条 -->
+  <!-- 提示条 -->
   <div id="toast" class="hidden" role="status"></div>
 
 <script>
 'use strict';
 
-/* ================= 常量 ================= */
-
-// 工具白名单固定候选
-var FIXED_TOOLS = ['read', 'write', 'edit', 'bash', 'glob', 'grep', 'web_search', 'web_fetch', 'todo_write'];
-
-// 思考下拉 → 提交值：自动=null / 关={enabled:false} / 低中高={enabled:true,effort:...}
-var THINKING_OPTIONS = {
-  auto: null,
-  off: { enabled: false },
-  low: { enabled: true, effort: 'low' },
-  med: { enabled: true, effort: 'med' },
-  high: { enabled: true, effort: 'high' }
-};
-
 /* ================= 本地状态 ================= */
 
-var defaults = { limit: null, allow: null, thinking: null }; // 默认模式（与代理同步）
-var sessions = [];       // 会话列表（按接口返回顺序渲染）
-var selectedConv = null; // 当前选中会话 conv
-var polling = false;     // 轮询防重入
-var clearTimer = null;   // “清空上下文”确认复位定时器
-var toastTimer = null;   // 错误提示条自动隐藏定时器
+var sessions = [];        // 会话列表（来自 GET /api/sessions，按接口返回顺序渲染）
+var toolsCatalog = [];    // 全局工具目录（来自 GET /api/tools，宿主已排序）
+var selectedId = null;    // 当前选中会话 id
+var polling = false;      // 轮询防重入
+var savingTools = false;  // 工具白名单保存中（阻止并发点击）
+var clearTimer = null;    // “清空上下文”确认复位定时器
+var toastTimer = null;    // 提示条自动隐藏定时器
 
 function $(id) { return document.getElementById(id); }
 
 /* ================= 基础工具 ================= */
 
-// 时间显示：MM/DD HH:mm；无法解析时原样展示
-function fmtTime(v) {
-  if (!v) return '';
-  var d = new Date(v);
-  if (Number.isNaN(d.getTime())) return String(v);
-  var p = function (n) { return String(n).padStart(2, '0'); };
-  return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
-}
-
-// 错误提示条（3s 自动隐藏）
-function showToast(msg) {
+// 提示条（3s 自动隐藏；isOk=true 用成功绿样式）
+function showToast(msg, isOk) {
   var t = $('toast');
   t.textContent = msg;
+  t.classList.toggle('ok', !!isOk);
   t.classList.remove('hidden');
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(function () { t.classList.add('hidden'); }, 3000);
@@ -346,27 +286,27 @@ function apiGet(p) {
   });
 }
 
+// POST 返回解析后的 JSON（无论 HTTP 状态都尝试解析，业务态看 data.ok）
 function apiPost(p, body) {
   return fetch(p, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   }).then(function (r) {
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return r.json();
+    return r.json().catch(function () { throw new Error('HTTP ' + r.status); });
   });
 }
 
 /* ================= 在线状态 ================= */
 
-// 绿=代理可达；红=代理不可达（顶部同时出现提示条）
+// 绿=数据源可达；红=数据源不可达（顶部同时出现提示条）
 function setOnline(ok) {
   $('dot').className = 'dot ' + (ok ? 'green' : 'red');
-  $('dot').title = ok ? '代理可达' : '代理不可达';
+  $('dot').title = ok ? '数据源可达' : '数据源不可达';
   $('banner').classList.toggle('hidden', ok);
 }
 
-/* ================= 轮询（5s，两个接口并发） ================= */
+/* ================= 轮询（5s，两个接口并发、防重入） ================= */
 
 function pollAll() {
   if (polling) return; // 上一次未结束则跳过本轮
@@ -374,100 +314,29 @@ function pollAll() {
   var listEl = $('session-list');
   var scrollTop = listEl.scrollTop; // 渲染后恢复列表内部滚动位置
 
-  Promise.allSettled([apiGet('/api/sessions'), apiGet('/api/defaults')]).then(function (results) {
-    var sr = results[0];
-    var dr = results[1];
+  Promise.allSettled([apiGet('/api/sessions'), apiGet('/api/tools')]).then(function (results) {
+    var sr = results[0]; // sessions
+    var tr = results[1]; // tools 目录（变化少但一并刷新）
     // 任一失败 → 状态点变红 + 顶部提示条；全部成功 → 恢复绿
-    setOnline(sr.status === 'fulfilled' && dr.status === 'fulfilled');
+    setOnline(sr.status === 'fulfilled' && tr.status === 'fulfilled');
 
     if (sr.status === 'fulfilled') {
       var data = sr.value || {};
-      sessions = Array.isArray(data) ? data : (Array.isArray(data.sessions) ? data.sessions : []);
+      sessions = Array.isArray(data.sessions) ? data.sessions : [];
       // 选中会话已被清除则取消选中
-      if (selectedConv && !sessions.some(function (s) { return s.conv === selectedConv; })) selectedConv = null;
+      if (selectedId && !sessions.some(function (s) { return s.id === selectedId; })) selectedId = null;
       renderSessions();
       renderDetail();
     }
-    if (dr.status === 'fulfilled') {
-      var d = dr.value || {};
-      var dd = d && typeof d === 'object' && d.defaults ? d.defaults : d;
-      if (dd && typeof dd === 'object') {
-        if ('limit' in dd) defaults.limit = dd.limit;
-        if ('allow' in dd) defaults.allow = dd.allow;
-        if ('thinking' in dd) defaults.thinking = dd.thinking;
-      }
-      renderDefaults();
+    if (tr.status === 'fulfilled') {
+      var t = tr.value || {};
+      toolsCatalog = Array.isArray(t.tools) ? t.tools.slice() : toolsCatalog;
+      renderDetail(); // 目录变化后刷新选中会话的 chips
     }
 
     $('last-update').textContent = '最近更新 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
     listEl.scrollTop = scrollTop;
     polling = false;
-  });
-}
-
-/* ================= 默认模式渲染与保存 ================= */
-
-// 思考值 → 下拉选项 key
-function thinkingToKey(v) {
-  if (v === null || v === undefined) return 'auto';
-  if (v && typeof v === 'object' && v.enabled === false) return 'off';
-  if (v && typeof v === 'object' && v.enabled === true) {
-    return { low: 'low', med: 'med', high: 'high' }[v.effort] || 'med';
-  }
-  return 'auto';
-}
-
-// 工具白名单 chips：固定候选 + allow 中出现的未知工具
-// allow 为 null = 全部允许（全不选）；全不选时回调 null
-function renderToolsChips(container, allow, onToggle) {
-  container.innerHTML = '';
-  var selected = Array.isArray(allow) ? allow.slice() : [];
-  var candidates = FIXED_TOOLS.slice();
-  if (Array.isArray(allow)) {
-    allow.forEach(function (t) {
-      if (candidates.indexOf(t) === -1) candidates.push(t); // 未知工具追加展示
-    });
-  }
-  candidates.forEach(function (t) {
-    var chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'chip' + (selected.indexOf(t) !== -1 ? ' on' : '');
-    chip.textContent = t;
-    chip.setAttribute('aria-label', '切换工具 ' + t);
-    chip.setAttribute('aria-pressed', selected.indexOf(t) !== -1 ? 'true' : 'false');
-    chip.addEventListener('click', function () {
-      var set = selected.slice();
-      var i = set.indexOf(t);
-      if (i === -1) set.push(t); else set.splice(i, 1);
-      onToggle(set.length ? set : null); // 全不选 → null（全部允许）
-    });
-    container.appendChild(chip);
-  });
-}
-
-// 渲染默认模式（预算滑块 / 思考下拉 / 工具 chips）
-function renderDefaults() {
-  var lim = defaults.limit;
-  // limit 为 null 显示「默认」，滑块停在中间默认位；拖动中不被轮询打断
-  if (document.activeElement !== $('d-limit')) {
-    $('d-limit').value = lim == null ? 8192 : lim;
-  }
-  $('d-limit-text').textContent = lim == null ? '默认' : String(lim);
-  $('d-limit-text').classList.toggle('is-default', lim == null);
-  $('d-thinking').value = thinkingToKey(defaults.thinking);
-  renderToolsChips($('d-tools'), defaults.allow, function (allow) {
-    saveDefaults({ allow: allow });
-  });
-}
-
-// 保存默认模式改动：body 只含改动的键；失败提示并回滚展示值
-function saveDefaults(patch) {
-  apiPost('/api/defaults', patch).then(function () {
-    Object.assign(defaults, patch); // 成功后合并本地值
-    renderDefaults();
-  }).catch(function () {
-    showToast('默认模式保存失败，已回滚');
-    renderDefaults(); // 失败：按旧值回滚展示
   });
 }
 
@@ -486,22 +355,22 @@ function renderSessions() {
   sessions.forEach(function (s) {
     var row = document.createElement('button');
     row.type = 'button';
-    row.className = 'session-row' + (s.conv === selectedConv ? ' selected' : '');
-    row.setAttribute('aria-label', '选择会话 ' + (s.conv || ''));
-    row.setAttribute('aria-pressed', s.conv === selectedConv ? 'true' : 'false');
+    row.className = 'session-row' + (s.id === selectedId ? ' selected' : '');
+    row.setAttribute('aria-label', '选择会话 ' + (s.id || ''));
+    row.setAttribute('aria-pressed', s.id === selectedId ? 'true' : 'false');
 
     var title = document.createElement('div');
     title.className = 's-title';
-    title.textContent = s.title || s.first_user || s.conv || '(无标题)'; // 代理已算好回退链的 title
+    title.textContent = s.title || s.id || '(无标题)'; // 标题为空时显示 id
 
     var sub = document.createElement('div');
     sub.className = 's-sub';
-    sub.textContent = (s.conv || '') + ' · ' + fmtTime(s.last_active);
+    sub.textContent = (s.id || '') + ' · ' + (s.live ? '活动' : '冷'); // 活动/冷 标记
 
     row.appendChild(title);
     row.appendChild(sub);
     row.addEventListener('click', function () {
-      selectedConv = s.conv; // 单击选中高亮
+      selectedId = s.id; // 单击选中高亮
       renderSessions();
       renderDetail();
     });
@@ -509,116 +378,131 @@ function renderSessions() {
   });
 }
 
-/* ================= 选中会话：常驻预算框 + 底部工具/清空 ================= */
+/* ================= 选中会话：常驻选中区 + 底部工具/清空 ================= */
+
+// 白名单摘要：allow===null → 全部允许；数组 → 已限制 N 个工具
+function allowSummary(allow) {
+  if (allow === null || allow === undefined) return '全部允许';
+  return '已限制 ' + allow.length + ' 个工具';
+}
 
 function renderDetail() {
-  var s = sessions.find(function (x) { return x.conv === selectedConv; });
-  var limit = $('s-limit');
+  var s = sessions.find(function (x) { return x.id === selectedId; });
   if (!s) {
-    // 无选中：预算框常驻占位并禁用
+    // 无选中：常驻区占位，详情隐藏
     $('b-head-title').textContent = '未选中会话';
-    limit.disabled = true;
-    limit.value = 8192;
-    $('s-limit-text').textContent = '默认';
-    $('s-limit-text').classList.add('is-default');
+    $('b-head-status').textContent = '';
     $('detail').classList.add('hidden');
     return;
   }
-  limit.disabled = false;
-  $('b-head-title').textContent = s.title || s.first_user || s.conv || '(无标题)';
-  var lim = s.limit;
-  if (document.activeElement !== limit) {
-    limit.value = lim == null ? 8192 : lim;
-  }
-  $('s-limit-text').textContent = lim == null ? '默认' : String(lim);
-  $('s-limit-text').classList.toggle('is-default', lim == null);
+  $('b-head-title').textContent = s.title || s.id || '(无标题)';
+  // 状态小字：活动 / 冷（未挂载）+ 白名单摘要
+  $('b-head-status').textContent = (s.live ? '活动' : '冷（未挂载）') + ' · ' + allowSummary(s.allow);
   $('detail').classList.remove('hidden');
-  renderToolsChips($('s-tools'), s.allow, function (allow) {
-    saveSessionTools(s.conv, allow);
-  });
+  renderToolsChips(s);
 }
 
-// 会话预算：改即存 POST /api/context {conv,limit}
-function saveSessionLimit(limit) {
-  var conv = selectedConv;
-  if (!conv) return;
-  apiPost('/api/context', { conv: conv, limit: limit }).then(function () {
-    var s = sessions.find(function (x) { return x.conv === conv; });
-    if (s) s.limit = limit;
-    renderDetail();
-  }).catch(function () {
-    showToast('预算保存失败，已回滚');
-    renderDetail(); // 失败：按旧值回滚展示
+// 工具白名单 chips：候选来自 GET /api/tools 的全局目录；
+// allow===null 时全部未选中并显示「全部允许（不限制）」标签
+function renderToolsChips(s) {
+  var allow = s.allow;
+  var note = $('s-tools-note');
+  if (allow === null || allow === undefined) {
+    note.textContent = '全部允许（不限制）';
+  } else {
+    note.textContent = '已选中 ' + allow.length + ' 个工具';
+  }
+
+  var selected = Array.isArray(allow) ? allow.slice() : [];
+  var container = $('s-tools');
+  container.innerHTML = '';
+  toolsCatalog.forEach(function (t) {
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip' + (selected.indexOf(t) !== -1 ? ' on' : '');
+    chip.textContent = t;
+    chip.disabled = savingTools; // 保存中锁定，防并发
+    chip.setAttribute('aria-label', '切换工具 ' + t);
+    chip.setAttribute('aria-pressed', selected.indexOf(t) !== -1 ? 'true' : 'false');
+    chip.addEventListener('click', function () {
+      var set = selected.slice();
+      var i = set.indexOf(t);
+      if (i === -1) set.push(t); else set.splice(i, 1);
+      saveSessionAllow(s.id, set.length ? set : null); // 全不选 → null（恢复全部）
+    });
+    container.appendChild(chip);
   });
+
+  // 「恢复全部」：allow 已是 null（全部允许）时禁用
+  $('btn-allow-all').disabled = savingTools || allow === null || allow === undefined;
 }
 
-// 会话工具白名单：POST /api/tools {conv,allow:[...]|null}
-function saveSessionTools(conv, allow) {
-  apiPost('/api/tools', { conv: conv, allow: allow }).then(function () {
-    var s = sessions.find(function (x) { return x.conv === conv; });
-    if (s) s.allow = allow;
+// 保存会话工具白名单：POST /api/allow {sessionId, allow:[...]|null}
+function saveSessionAllow(sessionId, allow) {
+  if (savingTools) return; // 保存中忽略并发点击
+  savingTools = true;
+  var s = sessions.find(function (x) { return x.id === sessionId; });
+  var oldAllow = s ? s.allow : null;
+  if (s) s.allow = allow; // 乐观更新展示，失败回滚
+  renderDetail();
+
+  apiPost('/api/allow', { sessionId: sessionId, allow: allow }).then(function (data) {
+    if (!data || data.ok !== true) throw new Error((data && data.error) || 'HTTP 错误');
+    var cur = sessions.find(function (x) { return x.id === sessionId; });
+    if (cur) cur.allow = allow; // 成功后固化本地值
+    savingTools = false;
     renderDetail();
   }).catch(function () {
+    if (s) s.allow = oldAllow; // 失败：按旧值回滚展示
+    savingTools = false;
     showToast('工具白名单保存失败，已回滚');
-    renderDetail(); // 失败：按旧值回滚展示
+    renderDetail();
   });
 }
 
-/* ================= 事件绑定 ================= */
+/* ================= 清空上下文（两段确认） ================= */
 
-// 默认模式：滑块拖动仅更新文字，松手（change）才保存
-$('d-limit').addEventListener('input', function () {
-  $('d-limit-text').textContent = $('d-limit').value;
-});
-$('d-limit').addEventListener('change', function () {
-  saveDefaults({ limit: Number($('d-limit').value) });
-});
-Array.prototype.forEach.call($('d-presets').querySelectorAll('button'), function (btn) {
-  btn.addEventListener('click', function () { saveDefaults({ limit: Number(btn.dataset.k) }); });
-});
-$('d-thinking').addEventListener('change', function () {
-  saveDefaults({ thinking: THINKING_OPTIONS[$('d-thinking').value] });
-});
-
-// 会话详情：预算滑块与预设
-$('s-limit').addEventListener('input', function () {
-  $('s-limit-text').textContent = $('s-limit').value;
-});
-$('s-limit').addEventListener('change', function () {
-  saveSessionLimit(Number($('s-limit').value));
-});
-Array.prototype.forEach.call($('s-presets').querySelectorAll('button'), function (btn) {
-  btn.addEventListener('click', function () { saveSessionLimit(Number(btn.dataset.k)); });
-});
-
-// 清空上下文：第一次点击进入确认态，3s 后复位；第二次点击才真正清空
+// 确认态复位：3s 后回到「清空上下文」
 function resetClearBtn() {
   var btn = $('btn-clear');
   btn.dataset.armed = '0';
   btn.textContent = '清空上下文';
 }
+
 $('btn-clear').addEventListener('click', function () {
-  var conv = selectedConv;
+  var sessionId = selectedId;
   var btn = $('btn-clear');
-  if (!conv) return;
+  if (!sessionId) return;
   if (btn.dataset.armed !== '1') {
+    // 第一次点击：进入确认态，3s 后复位
     btn.dataset.armed = '1';
     btn.textContent = '再点一次确认清空';
     clearTimer = setTimeout(resetClearBtn, 3000);
     return;
   }
+  // 第二次点击：真正清空
   clearTimeout(clearTimer);
   resetClearBtn();
   btn.disabled = true;
-  apiPost('/api/clear', { conv: conv }).then(function () {
-    selectedConv = null; // 清空选中
-    return pollAll();    // 刷新列表
-  }).catch(function (e) {
-    showToast('清空失败：' + e.message);
+  apiPost('/api/clear', { sessionId: sessionId }).then(function (data) {
+    if (data && data.ok === true) {
+      if (Number(data.compacted) > 0) {
+        showToast('已压缩 ' + data.compacted + ' 条（~' + data.tokens + ' tokens）', true);
+      } else {
+        showToast('无可压缩历史', true);
+      }
+    } else {
+      showToast((data && data.error) || '清空失败'); // ok:false → 直接展示服务端 error 文本
+    }
+  }).catch(function () {
+    showToast('清空失败：数据源不可达');
   }).then(function () {
     btn.disabled = false;
+    return pollAll(); // 完成后刷新列表
   });
 });
+
+/* ================= 事件绑定 ================= */
 
 // 折叠条通用绑定：点击展开/收起
 function wireCollapse(headId, bodyId) {
@@ -630,8 +514,14 @@ function wireCollapse(headId, bodyId) {
     head.setAttribute('aria-expanded', String(open));
   });
 }
-wireCollapse('btn-defaults', 'body-defaults');
 wireCollapse('btn-tools', 'body-tools');
+
+// 「恢复全部」：白名单置回 null（全部允许）
+$('btn-allow-all').addEventListener('click', function () {
+  var sessionId = selectedId;
+  if (!sessionId) return;
+  saveSessionAllow(sessionId, null);
+});
 
 // 顶栏 ⚙ 说明弹窗：ESC 或点遮罩关闭
 $('btn-help').addEventListener('click', function () { $('modal-mask').classList.remove('hidden'); });
@@ -649,11 +539,10 @@ $('btn-close').addEventListener('click', function () { window.close(); });
 /* ================= 启动 ================= */
 
 (function init() {
-  // 页脚控制面地址来自 preload 注入的 dashInfo
+  // 页脚数据源来自 preload 注入的 dashInfo
   var info = window.dashInfo || {};
-  $('admin-base').textContent = info.adminBase || '-';
-  $('admin-base').title = info.adminBase || '';
-  renderDefaults();
+  $('data-source').textContent = info.hostOrigin || '-';
+  $('data-source').title = info.hostOrigin || '';
   pollAll();                    // 首次加载立即拉取
   setInterval(pollAll, 5000);   // 每 5s 轮询
 })();

@@ -288,13 +288,10 @@
       const { useEffect, useRef, useState, useCallback } = react;
       const { jsx: h } = require("react/jsx-runtime");
 
-      /** 宿主状态初始值（GET state 字段全集） */
+      /** 宿主状态初始值（GET state 字段全集：v3 数据面已改 DSH 宿主，无代理字段） */
       const INITIAL_STATE = {
         on: false,
         port: 0,
-        adminBase: "",
-        pollMs: 2000,
-        degraded: false,
         downloading: false,
       };
 
@@ -651,7 +648,7 @@
                     state.port > 0 ? "http://127.0.0.1:" + state.port : "未运行",
                   ],
                 }),
-                h("div", { children: "轮询间隔：" + (state.pollMs || 2000) + " ms" }),
+                h("div", { children: "外窗数据源：DSH 会话（每 5s 轮询）" }),
                 h("div", {
                   children: "外窗随 DSH 退出自动回收；异常残留时关闭总开关可强制清理",
                 }),

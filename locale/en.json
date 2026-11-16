@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Session Console",
-    "description": "Gear widget in DSH plus a transparent always-on-top window that manages llama_proxy session budgets, tool allowlists and context clearing."
+    "description": "Gear widget in DSH plus a transparent always-on-top window managing DSH sessions: list & titles, enforced tool allowlists, and context compaction. Fully native to DSH, no external dependencies."
   }
 }

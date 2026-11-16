@@ -3,5 +3,5 @@
 const { contextBridge } = require('electron');
 contextBridge.exposeInMainWorld('dashInfo', {
   port: process.env.DSH_DASH_PORT || 0,
-  adminBase: process.env.DSH_DASH_ADMIN_BASE || ''
+  hostOrigin: process.env.DSH_DASH_HOST_ORIGIN || ''
 });
