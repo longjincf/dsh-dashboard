@@ -336,6 +336,7 @@
         const [closeBusy, setCloseBusy] = useState(false);
 
         const gearRef = useRef(null); /* 齿轮按钮 DOM */
+        const popRef = useRef(null); /* 设置弹窗 DOM */
         const posRef = useRef(pos); /* 位置实时值（拖动回调使用） */
         const dragRef = useRef(null); /* 拖动会话 {startX,startY,baseX,baseY} */
 
@@ -452,6 +453,22 @@
           };
         }, [onPointerDown, onPointerMove, onPointerUp]);
 
+        /* 点击弹窗外部任意处 → 收起（点齿轮仍为切换；弹窗内操作不收起） */
+        useEffect(function () {
+          if (!popOpen) return undefined;
+          const onDocPointerDown = function (ev) {
+            const pop = popRef.current;
+            const btn = gearRef.current;
+            if (pop && pop.contains(ev.target)) return;
+            if (btn && btn.contains(ev.target)) return;
+            setPopOpen(false);
+          };
+          window.addEventListener("pointerdown", onDocPointerDown);
+          return function () {
+            window.removeEventListener("pointerdown", onDocPointerDown);
+          };
+        }, [popOpen]);
+
         /* 宿主总开关关闭时整个小齿轮不渲染 */
         if (!state.on) return null;
 
@@ -467,6 +484,7 @@
           children: [
             popOpen
               ? h("div", {
+                  ref: popRef,
                   className: "dash-gear-pop",
                   children: [
                     h("button", {
