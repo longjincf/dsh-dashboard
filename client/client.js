@@ -44,8 +44,9 @@ window.__ModuleLoader__.load({
 .dshdash-frame{width:100%;height:100%}
 .dshdash-frame{position:static}
 .dshdash-framewrap{position:fixed;-webkit-app-region:no-drag;z-index:2147482999;width:392px;height:680px}
-.dshdash-dragstrip{position:absolute;top:10px;left:10px;right:152px;height:38px;cursor:grab;z-index:2;background:transparent}
+.dshdash-dragstrip{position:absolute;top:10px;left:10px;right:152px;height:38px;cursor:grab;z-index:5;background:transparent;display:flex;align-items:center}
 .dshdash-dragstrip:active{cursor:grabbing}
+.dshdash-dragstrip::before{content:"⠿";font-size:14px;color:rgba(255,255,255,.25);padding-left:6px}
 .dshdash-popup{position:fixed;z-index:2147483001;min-width:190px;border-radius:10px;background:rgba(22,26,35,.97);
   border:1px solid rgba(255,255,255,.12);box-shadow:0 12px 34px rgba(0,0,0,.5);padding:5px;font-size:12.5px;color:#d8dde8}
 .dshdash-popup .mi{padding:7px 10px;border-radius:7px;cursor:pointer}
@@ -157,6 +158,7 @@ window.__ModuleLoader__.load({
           if (!masterOn) return null   // 总开关关闭：五种模式全部消失（设置页可重新开启）
 
       if (mode === 'dot') { setDotPos(p); try { setLS(LS_DOT, JSON.stringify(p)) } catch {} }
+          else if (mode === 'pill') { setPillPos(p); try { setLS('dshdash:pill-pos', JSON.stringify(p)) } catch {} }
           else setPos(p)
         }
         const up = () => {
@@ -199,7 +201,7 @@ window.__ModuleLoader__.load({
       }
 
       if (mode === 'pill') {
-        const st = pos ? { left: pos.x + 'px', top: pos.y + 'px', right: 'auto', bottom: 'auto' } : null
+        const st = pillPos ? { left: pillPos.x + 'px', top: pillPos.y + 'px', right: 'auto', bottom: 'auto' } : null
         return h('div', {
           className: 'dshdash-pill',
           ref: dragRef,
@@ -217,7 +219,6 @@ window.__ModuleLoader__.load({
       // panel：父壳拖拽条 + iframe（拖拽逻辑在父壳，不依赖 iframe 事件转发）
       const st = pos ? { left: pos.x + 'px', top: pos.y + 'px', right: 'auto', bottom: 'auto' } : { right: '18px', bottom: '18px' }
       const panelDrag = (e) => {
-        if (e.target !== e.currentTarget) return
         e.preventDefault(); e.stopPropagation()
         const el = frameRef.current
         const r = el ? el.getBoundingClientRect() : { left: 0, top: 0 }
