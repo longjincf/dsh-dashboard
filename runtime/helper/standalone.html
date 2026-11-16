@@ -51,8 +51,6 @@ select{width:100%;margin-top:8px;padding:6px 8px;border-radius:8px;border:1px so
 <body>
 <div class="wrap">
   <div class="head" id="head"><span class="dot" id="dot"></span><span class="title">会话控制台</span><span class="sp"></span><span class="sub" id="sub"></span>
-    <button id="bFold" title="折叠" style="background:transparent;border:1px solid rgba(255,255,255,.15);color:#8b93a5;border-radius:7px;cursor:pointer">—</button>
-    <button id="bSwitch" title="切换外窗/内嵌" style="background:transparent;border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:7px;cursor:pointer">⧉</button>
     <button id="bGear" title="设置" style="background:transparent;border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:7px;cursor:pointer">⚙</button>
     <button id="bClose" style="background:transparent;border:1px solid rgba(255,255,255,.15);color:#8b93a5;border-radius:7px;cursor:pointer">✕</button>
     <div id="popup" style="display:none;position:absolute;top:38px;right:8px;min-width:170px;border-radius:10px;background:rgba(22,26,35,.97);border:1px solid rgba(255,255,255,.12);padding:5px;z-index:50;box-shadow:0 12px 34px rgba(0,0,0,.5)"></div></div>
@@ -61,53 +59,16 @@ select{width:100%;margin-top:8px;padding:6px 8px;border-radius:8px;border:1px so
   <div id="detail"></div>
 </div>
 <script>
-// 上下文检测：iframe（DSH 内嵌）vs helper（外窗独立进程）
-var IN_DSH = (function(){ try { return window.parent !== window && window.parent.location.href.indexOf('dsh-app') >= 0 } catch(e){ return false } })();
-var HELPER = typeof window.dshdash === 'object';
-function post(type, extra){
-  if(IN_DSH){
-    try { window.parent.postMessage(Object.assign({ source:'dshdash', type:type }, extra||{}), '*') } catch(e){}
-    try { localStorage.setItem('dshdash:action', JSON.stringify({ type: type, t: Date.now() })) } catch(e){}
-  }
-}
 function popupShow(html){
   var el=document.getElementById('popup');
   el.innerHTML=html; el.style.display='block';
   setTimeout(function(){ document.addEventListener('click', function h(ev){ if(!el.contains(ev.target)){ el.style.display='none'; document.removeEventListener('click', h) } }, { once:false }) }, 0);
 }
-// 顶栏按钮
-document.getElementById('bFold').onclick=function(){ if(IN_DSH){ post('fold') } else { popupShow('<div style="padding:7px 10px;color:#8b93a5;font-size:12px">外部胶囊模式待实现（M6）</div>') } };
-document.getElementById('bSwitch').onclick=function(){ if(IN_DSH){ post('open-external') } else { window.dshdash && window.dshdash.close() } };
-document.getElementById('bClose').onclick=function(){ if(IN_DSH){ post('hide-dot') } else { window.dshdash && window.dshdash.close() } };
+document.getElementById('bClose').onclick=function(){ window.dshdash && window.dshdash.close() };
 document.getElementById('bGear').onclick=function(){
-  popupShow(
-    (IN_DSH
-      ? '<div class="mi" data-a="fold" style="padding:7px 10px;border-radius:7px;cursor:pointer">折叠到胶囊</div>'
-        + '<div class="mi" data-a="external" style="padding:7px 10px;border-radius:7px;cursor:pointer">切到外窗</div>'
-      : '<div class="mi" data-a="close" style="padding:7px 10px;border-radius:7px;cursor:pointer">切回内嵌</div>')
-    + '<div style="padding:7px 10px;color:#8b93a5;font-size:11.5px">完全关闭：设置 → 插件 → 关闭 dsh-dashboard</div>');
-  Array.prototype.forEach.call(document.querySelectorAll('#popup .mi'), function(el){
-    el.onclick = function(){
-      var act = el.getAttribute('data-a');
-      if (act === 'fold') post('fold');
-      else if (act === 'external') post('open-external');
-      else if (act === 'close') { if (HELPER) window.dshdash.close(); }
-      document.getElementById('popup').style.display = 'none';
-    };
-  });
+  popupShow('<div style="padding:7px 10px;color:#8b93a5;font-size:11.5px">关闭窗口：点 ✕（重新打开请点 DSH 内的 ⚙）</div>'
+    + '<div style="padding:7px 10px;color:#8b93a5;font-size:11.5px">完全关闭：DSH 设置 → 控制台设置 → 关闭控制台</div>');
 };
-// iframe 内拖拽：把鼠标坐标转发给父壳（iframe 会吞掉事件，父壳拿不到）
-if (IN_DSH) {
-  document.getElementById('head').addEventListener('mousedown', function(e){
-    if (e.target.tagName === 'BUTTON') return;
-    e.preventDefault();
-    post('dragStart', { x: e.clientX, y: e.clientY });
-    var mv = function(ev){ post('drag', { x: ev.clientX, y: ev.clientY }) };
-    var up = function(){ document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up) };
-    document.addEventListener('mousemove', mv);
-    document.addEventListener('mouseup', up);
-  });
-}
 window.toolsOpen = false;
 var ALL=['read','bash','grep','glob','write','edit','run_mac_command','mac_memory_top10','web_search','ask_user_question'];
 var PRESETS=[8192,20480,32768];
