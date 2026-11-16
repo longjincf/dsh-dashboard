@@ -20,6 +20,14 @@ process.on('uncaughtException', () => { try { app.exit(0) } catch {} })
 
 let PORT = Number(process.env.DSH_DASH_PORT || 8792)
 
+// 父进程（DSH）退出/崩溃 → 3 秒内自尽，释放端口
+const hostPid = Number(process.env.DSH_DASH_HOST_PID || 0)
+if (hostPid > 0) {
+  setInterval(() => {
+    try { process.kill(hostPid, 0) } catch (e) { app.quit() }
+  }, 3000)
+}
+
 // ---------- 迷你服务器：页面 + llama_proxy /admin 中继 ----------
 const TABLE = {
   'GET /': '/admin/status',
