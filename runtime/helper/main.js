@@ -244,7 +244,7 @@ function proxyToHost(req, res) {
     path: target.pathname + target.search,
     method: req.method,
     headers: headers,
-    timeout: 10000 // 10s 超时
+    timeout: 30000 // 30s 超时：宿主冷启动读 281 会话标题可达 ~10s，10s 会误判数据源不可达
   }, (upRes) => {
     // 成功：透传状态码、Content-Type 与响应体
     res.writeHead(upRes.statusCode, {
