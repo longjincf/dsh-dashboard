@@ -136,7 +136,24 @@ window.__ModuleLoader__.load({
       }, [pos, openExternal])
 
       // 轮询 desktop 状态：外窗关闭 → 自动进内嵌面板
+      const lastActionRef = useRef(0)
+      const drainAction = useCallback(() => {
+        try {
+          const raw = getLS('dshdash:action')
+          if (!raw) return
+          const a = JSON.parse(raw)
+          if (a && a.t && a.t > lastActionRef.current) {
+            lastActionRef.current = a.t
+            if (a.type === 'fold') applyMode('pill')
+            else if (a.type === 'open-external') openExternal()
+            else if (a.type === 'hide-dot') applyMode('dot')
+          }
+          delLS('dshdash:action')
+        } catch {}
+      }, [])
+
       const reload = useCallback(() => {
+        drainAction()
         fetch('/dsh-dashboard/sessions').then(r => r.json()).then(d => {
           setOnline(true)
           if (typeof d.masterOn === 'boolean') setMasterOn(d.masterOn)

@@ -64,7 +64,12 @@ select{width:100%;margin-top:8px;padding:6px 8px;border-radius:8px;border:1px so
 // 上下文检测：iframe（DSH 内嵌）vs helper（外窗独立进程）
 var IN_DSH = (function(){ try { return window.parent !== window && window.parent.location.href.indexOf('dsh-app') >= 0 } catch(e){ return false } })();
 var HELPER = typeof window.dshdash === 'object';
-function post(type, extra){ if(IN_DSH){ try { window.parent.postMessage(Object.assign({ source:'dshdash', type:type }, extra||{}), '*') } catch(e){} } }
+function post(type, extra){
+  if(IN_DSH){
+    try { window.parent.postMessage(Object.assign({ source:'dshdash', type:type }, extra||{}), '*') } catch(e){}
+    try { localStorage.setItem('dshdash:action', JSON.stringify({ type: type, t: Date.now() })) } catch(e){}
+  }
+}
 function popupShow(html){
   var el=document.getElementById('popup');
   el.innerHTML=html; el.style.display='block';
