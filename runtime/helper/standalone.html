@@ -128,6 +128,16 @@
   .tool-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
   .tool-desc { color: #8a9099; font-size: 11px; flex-shrink: 0; }
 
+  /* 场景预设按钮行：问答 / 编程 / 全选 */
+  .scenario-row { display: flex; gap: 6px; margin: 8px 0 4px; }
+  .scenario-btn {
+    border: 1px solid rgba(255, 255, 255, 0.20); border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06); color: #cfd4dc;
+    padding: 4px 12px; font-size: 12px; cursor: pointer;
+  }
+  .scenario-btn:hover { background: rgba(255, 255, 255, 0.12); }
+  .scenario-btn:disabled { opacity: 0.55; cursor: default; }
+
   /* 小按钮（如「恢复全部」） */
   .mini-btn {
     margin-top: 8px;
@@ -289,6 +299,11 @@
           </div>
           <!-- ② 默认工具白名单（null=不限制；全不选 → null 恢复全部） -->
           <div class="row-label" id="def-tools-note">全部允许（不限制）</div>
+          <div class="scenario-row">
+            <button type="button" class="scenario-btn" id="def-preset-qa">问答</button>
+            <button type="button" class="scenario-btn" id="def-preset-coding">编程</button>
+            <button type="button" class="scenario-btn" id="def-preset-all">全选</button>
+          </div>
           <div class="tool-list" id="def-tools"></div>
         </div>
       </section>
@@ -320,6 +335,11 @@
           </button>
           <div id="body-tools" class="collapse-body hidden">
             <div class="row-label" id="s-tools-note"></div>
+            <div class="scenario-row">
+              <button type="button" class="scenario-btn" id="s-preset-qa">问答</button>
+              <button type="button" class="scenario-btn" id="s-preset-coding">编程</button>
+              <button type="button" class="scenario-btn" id="s-preset-all">全选</button>
+            </div>
             <div class="tool-list" id="s-tools"></div>
             <button id="btn-allow-all" class="mini-btn" aria-label="恢复全部">恢复全部</button>
           </div>
@@ -551,6 +571,29 @@ var TOOL_DESC = {
   office_convert: '文档转换', office_recalculate: '重算文档', office_render: '渲染文档',
   workflow: '工作流', exit_plan_mode: '退出规划'
 };
+
+// 场景最小工具集（执法层：未列入的工具将被拒止；DSH 0.2.2 无法对 own 注册工具减 schema）
+var SCENARIOS = {
+  qa: {
+    label: '问答',
+    tools: ['read', 'grep', 'glob', 'web_search', 'web_fetch', 'ask_user_question', 'todo_write', 'skill', 'present']
+  },
+  coding: {
+    label: '编程',
+    tools: ['read', 'write', 'edit', 'bash', 'glob', 'grep', 'todo_write', 'skill',
+      'subagent', 'subagent_fork', 'list_agents', 'send_message', 'wait_agent',
+      'job_list', 'job_output', 'job_kill', 'working_directory', 'read_image',
+      'present', 'create_goal', 'get_goal', 'update_goal']
+  }
+};
+
+// 场景预设 → 白名单值（all = 当前目录全量）
+function scenarioAllow(key) {
+  if (key === 'all') return toolsCatalog.length ? toolsCatalog.slice() : null;
+  var sc = SCENARIOS[key];
+  if (!sc) return null;
+  return sc.tools.filter(function (t) { return toolsCatalog.indexOf(t) !== -1; });
+}
 
 // 工具白名单列表：候选来自 GET /api/tools 的全局目录；
 // allow===null 时全部未选中并显示「全部允许（不限制）」标签
@@ -913,6 +956,31 @@ function wireCollapse(headId, bodyId) {
 }
 wireCollapse('btn-tools', 'body-tools');
 wireCollapse('btn-defaults', 'body-defaults'); // 「默认模式」折叠区（默认折叠）
+
+// 场景预设按钮：问答 / 编程 / 全选（两个白名单区各一组）
+function wireScenarioPresets(prefix, needSession) {
+  ['qa', 'coding', 'all'].forEach(function (key) {
+    var btn = $(prefix + '-preset-' + key);
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      if (needSession && !selectedId) {
+        showToast('请先在列表中选择一个会话');
+        return;
+      }
+      if (needSession && savingTools) return;      // 保存中锁定
+      if (!needSession && savingDefaults) return;
+      var allow = scenarioAllow(key);
+      if (allow === null) {
+        showToast('工具目录尚未加载，稍后再试');
+        return;
+      }
+      if (needSession) saveSessionAllow(selectedId, allow);
+      else saveDefaultAllow(allow);
+    });
+  });
+}
+wireScenarioPresets('s', true);   // 会话白名单
+wireScenarioPresets('def', false); // 默认白名单
 
 // 默认预算 slider：拖动（input）仅更新右侧文本，松开（change）才 POST
 $('def-budget-range').addEventListener('input', function () {
