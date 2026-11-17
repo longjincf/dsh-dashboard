@@ -102,6 +102,32 @@
   .chip.on { background: rgba(110, 139, 255, 0.30); border-color: #6e8bff; color: #fff; }
   .chip:disabled { opacity: 0.55; cursor: default; }
 
+  /* 工具白名单列表：一列，左名字右简短中文说明 */
+  .tool-list {
+    margin-top: 4px;
+    max-height: 240px;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+  }
+  .tool-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    width: 100%; text-align: left;
+    background: transparent; border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 5px 10px; cursor: pointer; color: inherit; font-size: 12.5px;
+  }
+  .tool-row:last-child { border-bottom: none; }
+  .tool-row:hover { background: rgba(255, 255, 255, 0.05); }
+  .tool-row.on {
+    background: rgba(110, 139, 255, 0.16);
+    border-left: 3px solid #6e8bff;
+    padding-left: 7px;
+  }
+  .tool-row:disabled { opacity: 0.55; cursor: default; }
+  .tool-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+  .tool-desc { color: #8a9099; font-size: 11px; flex-shrink: 0; }
+
   /* 小按钮（如「恢复全部」） */
   .mini-btn {
     margin-top: 8px;
@@ -263,7 +289,7 @@
           </div>
           <!-- ② 默认工具白名单（null=不限制；全不选 → null 恢复全部） -->
           <div class="row-label" id="def-tools-note">全部允许（不限制）</div>
-          <div class="chips" id="def-tools"></div>
+          <div class="tool-list" id="def-tools"></div>
         </div>
       </section>
 
@@ -294,7 +320,7 @@
           </button>
           <div id="body-tools" class="collapse-body hidden">
             <div class="row-label" id="s-tools-note"></div>
-            <div class="chips" id="s-tools"></div>
+            <div class="tool-list" id="s-tools"></div>
             <button id="btn-allow-all" class="mini-btn" aria-label="恢复全部">恢复全部</button>
           </div>
         </section>
@@ -509,7 +535,24 @@ function renderDetail() {
   syncSessionBudgetUI(); // 预算块：slider 位置 / 预设高亮 / 用量文本
 }
 
-// 工具白名单 chips：候选来自 GET /api/tools 的全局目录；
+// 工具名 → 简短中文说明（2~6 字；未收录的工具留空）
+var TOOL_DESC = {
+  read: '读文件', write: '写文件', edit: '改文件', bash: '终端', glob: '找文件', grep: '搜内容',
+  web_search: '网页搜索', web_fetch: '抓网页', todo_write: '待办',
+  create_goal: '建目标', get_goal: '查目标', update_goal: '更目标', ask_user_question: '问用户',
+  skill: '技能', subagent: '子代理', subagent_fork: '分叉子代理', list_agents: '列代理',
+  send_message: '发消息', wait_agent: '等代理',
+  schedule_create: '建定时', schedule_edit: '改定时', schedule_list: '列定时', schedule_view: '查定时',
+  present: '交付', plugin_manager: '插件管理', working_directory: '工作目录',
+  load_workspace_dependencies: '环境依赖',
+  job_list: '列任务', job_output: '读输出', job_kill: '杀任务',
+  read_image: '看图', list_subagent_models: '子代理模型',
+  team_task_create: '建团队任务', team_task_get: '查团队任务', team_task_list: '列团队任务', team_task_update: '更团队任务',
+  office_convert: '文档转换', office_recalculate: '重算文档', office_render: '渲染文档',
+  workflow: '工作流', exit_plan_mode: '退出规划'
+};
+
+// 工具白名单列表：候选来自 GET /api/tools 的全局目录；
 // allow===null 时全部未选中并显示「全部允许（不限制）」标签
 function renderToolsChips(s) {
   var allow = s.allow;
@@ -524,20 +567,27 @@ function renderToolsChips(s) {
   var container = $('s-tools');
   container.innerHTML = '';
   toolsCatalog.forEach(function (t) {
-    var chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'chip' + (selected.indexOf(t) !== -1 ? ' on' : '');
-    chip.textContent = t;
-    chip.disabled = savingTools; // 保存中锁定，防并发
-    chip.setAttribute('aria-label', '切换工具 ' + t);
-    chip.setAttribute('aria-pressed', selected.indexOf(t) !== -1 ? 'true' : 'false');
-    chip.addEventListener('click', function () {
+    var row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'tool-row' + (selected.indexOf(t) !== -1 ? ' on' : '');
+    row.disabled = savingTools; // 保存中锁定，防并发
+    row.setAttribute('aria-label', '切换工具 ' + t);
+    row.setAttribute('aria-pressed', selected.indexOf(t) !== -1 ? 'true' : 'false');
+    var nameEl = document.createElement('span');
+    nameEl.className = 'tool-name';
+    nameEl.textContent = t;
+    var descEl = document.createElement('span');
+    descEl.className = 'tool-desc';
+    descEl.textContent = TOOL_DESC[t] || '';
+    row.appendChild(nameEl);
+    row.appendChild(descEl);
+    row.addEventListener('click', function () {
       var set = selected.slice();
       var i = set.indexOf(t);
       if (i === -1) set.push(t); else set.splice(i, 1);
       saveSessionAllow(s.id, set.length ? set : null); // 全不选 → null（恢复全部）
     });
-    container.appendChild(chip);
+    container.appendChild(row);
   });
 
   // 「恢复全部」：allow 已是 null（全部允许）时禁用
@@ -663,20 +713,27 @@ function renderDefaultTools() {
   var container = $('def-tools');
   container.innerHTML = '';
   toolsCatalog.forEach(function (t) {
-    var chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'chip' + (selected.indexOf(t) !== -1 ? ' on' : '');
-    chip.textContent = t;
-    chip.disabled = savingDefaults; // 保存中锁定，防并发
-    chip.setAttribute('aria-label', '切换默认工具 ' + t);
-    chip.setAttribute('aria-pressed', selected.indexOf(t) !== -1 ? 'true' : 'false');
-    chip.addEventListener('click', function () {
+    var row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'tool-row' + (selected.indexOf(t) !== -1 ? ' on' : '');
+    row.disabled = savingDefaults; // 保存中锁定，防并发
+    row.setAttribute('aria-label', '切换默认工具 ' + t);
+    row.setAttribute('aria-pressed', selected.indexOf(t) !== -1 ? 'true' : 'false');
+    var nameEl = document.createElement('span');
+    nameEl.className = 'tool-name';
+    nameEl.textContent = t;
+    var descEl = document.createElement('span');
+    descEl.className = 'tool-desc';
+    descEl.textContent = TOOL_DESC[t] || '';
+    row.appendChild(nameEl);
+    row.appendChild(descEl);
+    row.addEventListener('click', function () {
       var set = selected.slice();
       var i = set.indexOf(t);
       if (i === -1) set.push(t); else set.splice(i, 1);
       saveDefaultAllow(set.length ? set : null); // 全不选 → null（恢复全部）
     });
-    container.appendChild(chip);
+    container.appendChild(row);
   });
 }
 
