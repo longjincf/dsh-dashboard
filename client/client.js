@@ -150,6 +150,17 @@
     });
   }
 
+  /** GET {ROUTE}/recent：最近会话列表（齿轮弹窗下拉用） */
+  function getRecent() {
+    return request("/recent")
+      .then(function (res) {
+        return res && Array.isArray(res.sessions) ? res.sessions : [];
+      })
+      .catch(function () {
+        return [];
+      });
+  }
+
   /** 齿轮 SVG path（白色，fill-rule=evenodd 挖出中心孔） */
   const GEAR_PATH =
     "M 32.00 2.00 A 30 30 0 0 1 42.26 3.81 L 39.87 10.39 A 23 23 0 0 1 48.26 15.74 L 53.21 10.79 M 53.21 10.79 A 30 30 0 0 1 59.19 19.32 L 52.85 22.28 A 23 23 0 0 1 55.00 32.00 L 62.00 32.00 M 62.00 32.00 A 30 30 0 0 1 60.19 42.26 L 53.61 39.87 A 23 23 0 0 1 48.26 48.26 L 53.21 53.21 M 53.21 53.21 A 30 30 0 0 1 44.68 59.19 L 41.72 52.85 A 23 23 0 0 1 32.00 55.00 L 32.00 62.00 M 32.00 62.00 A 30 30 0 0 1 21.74 60.19 L 24.13 53.61 A 23 23 0 0 1 15.74 48.26 L 10.79 53.21 M 10.79 53.21 A 30 30 0 0 1 4.81 44.68 L 11.15 41.72 A 23 23 0 0 1 9.00 32.00 L 2.00 32.00 M 2.00 32.00 A 30 30 0 0 1 3.81 21.74 L 10.39 24.13 A 23 23 0 0 1 15.74 15.74 L 10.79 10.79 M 10.79 10.79 A 30 30 0 0 1 19.32 4.81 L 22.28 11.15 A 23 23 0 0 1 32.00 9.00 L 32.00 2.00 M 32.00 24.50 A 7.5 7.5 0 1 1 32.00 24.50 A 7.5 7.5 0 1 1 32.00 24.50";
@@ -357,7 +368,6 @@
         const [openStatus, setOpenStatus] = useState("idle"); /* idle|opening|ok|error */
         const [openError, setOpenError] = useState("");
         const [closeBusy, setCloseBusy] = useState(false);
-        const [selectQuery, setSelectQuery] = useState("");
         const [selectStatus, setSelectStatus] = useState("idle"); /* idle|busy|ok|error */
         const [selectMsg, setSelectMsg] = useState("");
 
@@ -419,14 +429,34 @@
         );
 
         /* ③ 选中会话：POST select（标题/ID 模糊匹配，宿主持久化，外窗跟随） */
-        const handleSelect = useCallback(
-          async function () {
-            const q = (selectQuery || "").trim();
-            if (!q || selectStatus === "busy") return;
+        /* ③ 选中会话：下拉选择最近会话 → POST select（宿主持久化，外窗跟随） */
+        const [recent, setRecent] = useState([]); /* 最近会话列表（弹窗打开时拉取） */
+
+        useEffect(
+          function () {
+            if (!popOpen) return undefined;
+            let alive = true;
+            getRecent()
+              .then(function (list) {
+                if (alive) setRecent(list);
+              })
+              .catch(function () {
+                /* 拉取失败：下拉为空，仍可继续其它操作 */
+              });
+            return function () {
+              alive = false;
+            };
+          },
+          [popOpen]
+        );
+
+        const handleSelectId = useCallback(
+          async function (id) {
+            if (!id || selectStatus === "busy") return;
             setSelectStatus("busy");
             setSelectMsg("");
             try {
-              const res = await postSelect(q);
+              const res = await postSelect(id);
               if (res && res.ok) {
                 setSelectStatus("ok");
                 setSelectMsg("已选中：" + (res.title || res.id));
@@ -442,7 +472,7 @@
               setSelectMsg("无法连接宿主服务");
             }
           },
-          [selectQuery, selectStatus, setState]
+          [selectStatus, setState]
         );
 
         /* 拖拽（window 级监听）：pointerdown 起、pointermove 跟、pointerup 判定 */
@@ -576,27 +606,26 @@
                     h("div", {
                       className: "dash-pop-select",
                       children: [
-                        h("input", {
-                          type: "text",
+                        h("select", {
                           className: "dash-pop-input",
-                          placeholder: "会话标题 / ID",
-                          value: selectQuery,
+                          value: state.selected && state.selected.id ? state.selected.id : "",
                           onChange: function (ev) {
-                            setSelectQuery(ev.target.value);
-                            setSelectStatus("idle");
-                            setSelectMsg("");
+                            handleSelectId(ev.target.value);
                           },
-                          onKeyDown: function (ev) {
-                            if (ev.key === "Enter") handleSelect();
-                          },
-                          "aria-label": "按标题或ID选中会话",
-                        }),
-                        h("button", {
-                          type: "button",
-                          className: "dash-btn",
-                          disabled: selectStatus === "busy",
-                          onClick: handleSelect,
-                          children: selectStatus === "busy" ? "选中中…" : "选中",
+                          "aria-label": "选择会话（最近 10 条）",
+                          children: [
+                            h("option", {
+                              value: "",
+                              children: recent.length ? "选择会话…" : "（加载中…）",
+                            }),
+                          ].concat(
+                            recent.map(function (s) {
+                              return h("option", {
+                                value: s.id,
+                                children: s.title || s.id,
+                              });
+                            })
+                          ),
                         }),
                       ],
                     }),
