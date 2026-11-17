@@ -576,7 +576,8 @@ var TOOL_DESC = {
 var SCENARIOS = {
   qa: {
     label: '问答',
-    tools: ['read', 'grep', 'glob', 'web_search', 'web_fetch', 'ask_user_question', 'todo_write', 'skill', 'present']
+    // 纯问答：不带本地文件类工具（read/grep/glob），减少模型对本地路径的幻觉诱因
+    tools: ['web_search', 'web_fetch', 'ask_user_question', 'todo_write', 'present']
   },
   coding: {
     label: '编程',
