@@ -576,8 +576,8 @@ var TOOL_DESC = {
 var SCENARIOS = {
   qa: {
     label: '问答',
-    // 纯问答：不带本地文件类工具（read/grep/glob），减少模型对本地路径的幻觉诱因
-    tools: ['web_search', 'web_fetch', 'ask_user_question', 'todo_write', 'present']
+    // 排除式：除了定时(schedule_*)与团队任务(team_task_*)，其余全给；动态跟随工具目录
+    excludePrefix: ['schedule_', 'team_task_']
   },
   coding: {
     label: '编程',
@@ -593,6 +593,11 @@ function scenarioAllow(key) {
   if (key === 'all') return toolsCatalog.length ? toolsCatalog.slice() : null;
   var sc = SCENARIOS[key];
   if (!sc) return null;
+  if (sc.excludePrefix) {
+    return toolsCatalog.filter(function (t) {
+      return !sc.excludePrefix.some(function (p) { return t.indexOf(p) === 0; });
+    });
+  }
   return sc.tools.filter(function (t) { return toolsCatalog.indexOf(t) !== -1; });
 }
 
