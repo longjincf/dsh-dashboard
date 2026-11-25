@@ -134,7 +134,7 @@ function handleRequest(req, res) {
   if (req.method === 'GET' && urlPath === '/pool-balance') {
     // 号池用量：helper 进程受沙箱限制不能直连 7862，经宿主反代（带 token）
     const force = (req.url || '').includes('force=1');
-    return proxyToHost(req, res, '/dsh-dashboard/pool-balance' + (force ? '?force=1' : ''));
+    return proxyToHost(req, res, '/dsh-dashboard/api/pool-balance' + (force ? '?force=1' : ''));
   }
   if (urlPath.startsWith('/api')) {
     return proxyToHost(req, res);
