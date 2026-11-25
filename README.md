@@ -20,7 +20,7 @@ DSH 插件：双模式会话控制台。**v3 起完全独立**——数据面为
 ## 架构要点
 
 - helper 自带 HTTP 服务器 `127.0.0.1:8792`（端口被占自动 +1 ×10）：serve `standalone.html`；`/api/*` 反代回 **DSH 宿主**（`/dsh-dashboard/api/*`，共享 token 校验），页面数据不经过任何第三方。
-- 独立 Electron 下载：npmmirror `electron-v<宿主版本>-darwin-<arch>.zip`（SHASUMS256 校验）→ 私有目录 `~/.dsh/dsh-dashboard/electron/`（与 dsh-pet 隔离）。
+- 独立 Electron 下载：npmmirror `electron-v<宿主版本>-<darwin|win32>-<arch>.zip`（SHASUMS256 校验；macOS ditto / Windows Expand-Archive 解压）→ 私有目录 `~/.dsh/dsh-dashboard/electron/`（与 dsh-pet 隔离）。
 - 外窗 URL 由宿主自拼（`http://127.0.0.1:<helper端口>/standalone.html`），客户端永不拼 URL。
 - 生命周期：DSH 正常退出 → 宿主 dispose 钩子杀 helper；DSH 崩溃 → helper 看门狗每 3s 探测父进程（env `DSH_DASH_HOST_PID`）→ 消失即自尽；端口随进程退出释放。
 - 外窗 ✕ 只关窗口、保留 helper（快速复现）；仅总开关 OFF / DSH 退出才杀进程。
