@@ -304,7 +304,7 @@
     <header id="topbar">
       <span class="title">会话控制台</span>
       <span id="dot" class="dot gray" title="检测中"></span>
-      <button id="btn-pool" class="icon-btn no-drag" aria-label="号池用量">墨</button>
+      <button id="btn-pool" class="icon-btn no-drag" aria-label="号池用量">池</button>
       <button id="btn-help" class="icon-btn no-drag" aria-label="说明">⚙</button>
       <button id="btn-close" class="icon-btn no-drag" aria-label="关闭窗口">✕</button>
     </header>
@@ -603,7 +603,8 @@ function renderPool() {
   var pct = cap > 0 ? (total / cap) * 100 : 0;
   sum.classList.remove('hidden');
   prog.classList.remove('hidden');
-  $('pool-total').textContent = '合计可用 ' + fmtPoolNum(total) + ' / ' + cap.toLocaleString('en-US');
+  // 合计四舍五入取整（不带小数点）
+  $('pool-total').textContent = '合计可用 ' + Math.round(total).toLocaleString('en-US') + ' / ' + cap.toLocaleString('en-US');
   $('pool-percent').textContent = pct.toFixed(1) + '%';
   $('pool-progress-fill').style.width = Math.min(100, pct) + '%';
 
