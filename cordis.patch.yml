@@ -10,6 +10,7 @@
       name: 'dsh-dashboard'
       config:
         enabled: true
+        poolUrl: 'http://127.0.0.1:7862'
 
 # 启用压缩服务（web 组合默认禁用）：控制台「清空上下文」依赖 compaction；
 # 注意：启用后 agent 压力/溢出自动压缩全局生效（用户已确认）。

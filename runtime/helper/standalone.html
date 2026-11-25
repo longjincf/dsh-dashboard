@@ -128,6 +128,47 @@
   .tool-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
   .tool-desc { color: #8a9099; font-size: 11px; flex-shrink: 0; }
 
+  /* ===== 号池用量 ===== */
+  #pool-summary {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  }
+  .pool-total { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .pool-percent { font-size: 11px; color: #8a9099; }
+  #pool-progress {
+    height: 6px; border-radius: 3px; overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 8px 0 10px;
+  }
+  #pool-progress-fill {
+    height: 100%; width: 0%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #6e8bff, #34c759);
+    transition: width .5s ease;
+  }
+  .pool-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 2px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 12.5px;
+  }
+  .pool-row:last-child { border-bottom: none; }
+  .pool-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .pool-dot.green  { background: #34c759; box-shadow: 0 0 6px rgba(52, 199, 89, 0.7); }
+  .pool-dot.yellow { background: #ffd60a; box-shadow: 0 0 6px rgba(255, 214, 10, 0.7); }
+  .pool-dot.red    { background: #ff5f57; box-shadow: 0 0 6px rgba(255, 95, 87, 0.7); }
+  .pool-name {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .pool-usage { color: #8a9099; font-size: 11px; flex-shrink: 0; }
+  .pool-balance {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px; font-variant-numeric: tabular-nums; flex-shrink: 0;
+  }
+  .pool-error { color: #ff8585; font-size: 12px; padding: 4px 0 8px; }
+  .pool-foot { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+  #pool-updated { color: #8a9099; font-size: 11px; }
+
   /* 场景预设按钮行：问答 / 编程 / 全选 */
   .scenario-row { display: flex; gap: 6px; margin: 8px 0 4px; }
   .scenario-btn {
@@ -263,6 +304,7 @@
     <header id="topbar">
       <span class="title">会话控制台</span>
       <span id="dot" class="dot gray" title="检测中"></span>
+      <button id="btn-pool" class="icon-btn no-drag" aria-label="号池用量">墨</button>
       <button id="btn-help" class="icon-btn no-drag" aria-label="说明">⚙</button>
       <button id="btn-close" class="icon-btn no-drag" aria-label="关闭窗口">✕</button>
     </header>
@@ -305,6 +347,26 @@
             <button type="button" class="scenario-btn" id="def-preset-all">全选</button>
           </div>
           <div class="tool-list" id="def-tools"></div>
+        </div>
+      </section>
+
+      <!-- 号池用量（顶栏「墨」按钮切换；数据经 helper /pool-balance 反代本机网关） -->
+      <section id="pool-section" class="hidden">
+        <button id="btn-pool-collapse" class="collapse-head" aria-expanded="true">
+          <span class="chev open">▾</span> 号池用量
+        </button>
+        <div id="pool-body" class="collapse-body">
+          <div id="pool-summary" class="hidden">
+            <div class="pool-total" id="pool-total"></div>
+            <div class="pool-percent" id="pool-percent"></div>
+          </div>
+          <div id="pool-progress" class="hidden"><div id="pool-progress-fill"></div></div>
+          <div id="pool-accounts"></div>
+          <div id="pool-error" class="pool-error hidden">网关未启动</div>
+          <div class="pool-foot">
+            <button id="btn-pool-refresh" class="mini-btn" aria-label="强制刷新号池余额">↻ 强制刷新</button>
+            <span id="pool-updated"></span>
+          </div>
         </div>
       </section>
 
@@ -472,6 +534,107 @@ function pollAll() {
     listEl.scrollTop = scrollTop;
     polling = false;
   });
+}
+
+/* ================= 号池用量（helper /pool-balance 反代本机网关） ================= */
+
+var poolState = { ok: false, error: '', data: null, nextAllowedAt: 0, fetching: false };
+
+// 千分位数字（最多 1 位小数）
+function fmtPoolNum(v) {
+  var n = Number(v);
+  if (!isFinite(n)) return '—';
+  return n.toLocaleString('en-US', { maximumFractionDigits: 1 });
+}
+
+function setPoolRefreshing(busy) {
+  var btn = $('btn-pool-refresh');
+  if (btn) {
+    btn.disabled = busy;
+    btn.textContent = busy ? '↻ 刷新中…' : '↻ 强制刷新';
+  }
+}
+
+// 拉取：进入外窗拉一次 + 手动刷新；网关离线 30s 冷却不重试风暴（force 不受限）
+function fetchPool(force) {
+  if (poolState.fetching) return;
+  if (!force && !poolState.ok && Date.now() < poolState.nextAllowedAt) return;
+  poolState.fetching = true;
+  setPoolRefreshing(true);
+  apiGet('/pool-balance' + (force ? '?force=1' : '')).then(function (d) {
+    poolState.data = d;
+    poolState.ok = true;
+    poolState.error = '';
+    renderPool();
+  }).catch(function () {
+    poolState.ok = false;
+    poolState.error = '网关未启动';
+    poolState.nextAllowedAt = Date.now() + 30000;
+    renderPool();
+  }).then(function () {
+    poolState.fetching = false;
+    setPoolRefreshing(false);
+  });
+}
+
+function renderPool() {
+  var d = poolState.data;
+  var errEl = $('pool-error');
+  var sum = $('pool-summary');
+  var prog = $('pool-progress');
+  var acc = $('pool-accounts');
+  var upd = $('pool-updated');
+  if (!poolState.ok || !d || !Array.isArray(d.accounts)) {
+    sum.classList.add('hidden');
+    prog.classList.add('hidden');
+    acc.innerHTML = '';
+    errEl.textContent = poolState.error || '网关未启动';
+    errEl.classList.remove('hidden');
+    upd.textContent = '';
+    return;
+  }
+  errEl.classList.add('hidden');
+  var total = 0;
+  var cap = 0;
+  d.accounts.forEach(function (a) {
+    total += Number(a.available) || 0;
+    cap += 10000; // 月包 10,000 墨点/号
+  });
+  var pct = cap > 0 ? (total / cap) * 100 : 0;
+  sum.classList.remove('hidden');
+  prog.classList.remove('hidden');
+  $('pool-total').textContent = '合计可用 ' + fmtPoolNum(total) + ' / ' + cap.toLocaleString('en-US');
+  $('pool-percent').textContent = pct.toFixed(1) + '%';
+  $('pool-progress-fill').style.width = Math.min(100, pct) + '%';
+
+  acc.innerHTML = '';
+  d.accounts.forEach(function (a) {
+    var row = document.createElement('div');
+    row.className = 'pool-row';
+    var dotClass = a.disabled ? 'red' : (a.live ? 'green' : 'yellow');
+    var dotTitle = a.disabled
+      ? '被踢池：' + ((a.disabled && a.disabled.reason) || '未知原因')
+      : (a.live ? '在池 · 直读真实余额' : '无 uaa · 走估算');
+    var dot = document.createElement('span');
+    dot.className = 'pool-dot ' + dotClass;
+    dot.title = dotTitle;
+    var name = document.createElement('span');
+    name.className = 'pool-name';
+    name.textContent = a.name || '—';
+    var usage = document.createElement('span');
+    usage.className = 'pool-usage';
+    var credits = Number(a.month_credits_est);
+    usage.textContent = isFinite(credits) && credits !== 0 ? '月估 ' + fmtPoolNum(credits) + ' 墨点' : '';
+    var bal = document.createElement('span');
+    bal.className = 'pool-balance';
+    bal.textContent = fmtPoolNum(a.available);
+    row.appendChild(dot);
+    row.appendChild(name);
+    row.appendChild(usage);
+    row.appendChild(bal);
+    acc.appendChild(row);
+  });
+  upd.textContent = '更新于 ' + (d.at || new Date().toLocaleTimeString('zh-CN', { hour12: false }));
 }
 
 /* ================= 会话列表渲染 ================= */
@@ -988,6 +1151,22 @@ function wireScenarioPresets(prefix, needSession) {
 wireScenarioPresets('s', true);   // 会话白名单
 wireScenarioPresets('def', false); // 默认白名单
 
+// 号池用量：顶栏「墨」按钮切换区块；折叠头切换 body；强制刷新按钮
+$('btn-pool').addEventListener('click', function () {
+  var sec = $('pool-section');
+  sec.classList.toggle('hidden');
+  if (!sec.classList.contains('hidden') && !poolState.ok && !poolState.fetching) fetchPool(false);
+});
+$('btn-pool-collapse').addEventListener('click', function () {
+  var body = $('pool-body');
+  var open = body.classList.toggle('hidden') === false;
+  var chev = this.querySelector('.chev');
+  chev.classList.toggle('open', open);
+  this.setAttribute('aria-expanded', String(open));
+  if (open && !poolState.ok && !poolState.fetching) fetchPool(false);
+});
+$('btn-pool-refresh').addEventListener('click', function () { fetchPool(true); });
+
 // 默认预算 slider：拖动（input）仅更新右侧文本，松开（change）才 POST
 $('def-budget-range').addEventListener('input', function () {
   $('def-budget-val').textContent = budgetText(Number(this.value));
@@ -1067,6 +1246,7 @@ $('btn-close').addEventListener('click', function () { window.close(); });
   renderDefaults();               // 默认模式区初始渲染（占位数据）
   pollAll();                    // 首次加载立即拉取
   setInterval(pollAll, 5000);   // 每 5s 轮询
+  fetchPool(false);             // 进入外窗拉一次号池用量（网关缓存 30 分钟，不常轮询）
 })();
 </script>
 </body>

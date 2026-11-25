@@ -16,6 +16,7 @@
  *   DSH_DASH_URL        外窗 URL 模板 http://127.0.0.1:<端口>/standalone.html
  *   DSH_DASH_STATE_DIR  状态目录（存 window-state.json）
  *   DSH_DASH_LOG        日志文件路径
+ *   （号池用量 /pool-balance 经 /dsh-dashboard/pool-balance 由宿主反代，helper 不直连网关）
  */
 'use strict';
 
@@ -130,6 +131,11 @@ function handleRequest(req, res) {
   if (req.method === 'GET' && (urlPath === '/' || urlPath === '/standalone.html')) {
     return serveStandalone(res);
   }
+  if (req.method === 'GET' && urlPath === '/pool-balance') {
+    // 号池用量：helper 进程受沙箱限制不能直连 7862，经宿主反代（带 token）
+    const force = (req.url || '').includes('force=1');
+    return proxyToHost(req, res, '/dsh-dashboard/pool-balance' + (force ? '?force=1' : ''));
+  }
   if (urlPath.startsWith('/api')) {
     return proxyToHost(req, res);
   }
@@ -214,7 +220,7 @@ function serveStandalone(res) {
 
 // 剥掉 /api 前缀后拼 DSH_DASH_HOST_ORIGIN + "/dsh-dashboard/api" + 剩余路径；
 // 追加 x-dsh-dash-token 头；透传方法与请求体；10s 超时；不可达返回 502。
-function proxyToHost(req, res) {
+function proxyToHost(req, res, targetPath) {
   const startedAt = Date.now()
   const reqLine = req.method + ' ' + (req.url || '/')
   const base = (process.env.DSH_DASH_HOST_ORIGIN || '').trim().replace(/\/+$/, '');
@@ -225,8 +231,12 @@ function proxyToHost(req, res) {
 
   let target;
   try {
-    const rest = (req.url || '/').replace(/^\/api/, '') || '/';
-    target = new URL(base + '/dsh-dashboard/api' + rest); // 含 query，一并透传
+    // targetPath 显式给定时直接用（如 /dsh-dashboard/pool-balance?force=1）；
+    // 否则按 /api 语义：剥掉 /api 前缀拼 /dsh-dashboard/api + 剩余路径（含 query）
+    const suffix = targetPath !== undefined
+      ? targetPath
+      : '/dsh-dashboard/api' + ((req.url || '/').replace(/^\/api/, '') || '/');
+    target = new URL(base + suffix);
   } catch (err) {
     log('代理失败：DSH_DASH_HOST_ORIGIN 解析出错 ' + err.message);
     return sendJson(res, 502, { ok: false, error: '数据源不可达' });
